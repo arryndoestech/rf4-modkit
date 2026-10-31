@@ -4767,12 +4767,12 @@ class App:
                 self.status.config(text=f"Exported {len(t)} rows → {f}")
         ttk.Button(bar, text="Export CSV…", command=export_csv).pack(side="right", padx=4)
 
-        show = ["difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "reach_scale",
-                "heal_hp", "heal_rp", "status_word"]
+        show = ["Difficulty", "ATK", "MAT", "DEF", "MDF", "STR", "INT", "VIT", "Reach",
+                "HP healed", "RP healed", "Effects"]
         cols = ["#", "name"] + show + ["procs", "resists", "flags"]
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=14)
-        widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "status_word": 70}
+        widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "Effects": 70}
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=widths.get(c, 52), anchor="w")
         _table_scrollbars(top, tv)
@@ -4792,7 +4792,7 @@ class App:
                     continue
                 procs = ", ".join(f"{n[5:]} {v * 100 // 4096}%" for n, v in r.nonzero("attack_proc"))
                 res = ", ".join(f"{n[4:]} {v * 100 // 4096}%" for n, v in r.nonzero("resist"))
-                vals = [r.id, nm] + [(("0x%X" % r[c]) if c == "status_word" else r[c]) for c in show]
+                vals = [r.id, nm] + [(("0x%X" % r[c]) if c == "Effects" else r[c]) for c in show]
                 vals += [procs, res, "; ".join(r.status_flags())]
                 tv.insert("", "end", iid=str(r.id), values=vals); shown += 1
                 if shown >= _max_rows():
@@ -4826,7 +4826,7 @@ class App:
 
         def shown(i, fn):
             v = t.row(i)[fn]
-            return ("0x%X" % v) if fn == "status_word" else str(v)
+            return ("0x%X" % v) if fn == "Effects" else str(v)
 
         def fill_fields():
             keep = fv.focus()

@@ -1218,7 +1218,7 @@ python rf4mod.py res info ANIM_DUNG_A02.model
 python rf4mod.py param info rf3ItemList.bin            # item id → sell price + name
 python rf4mod.py param set rf3ItemList.bin 29 "Sell price=9999" -o new.bin   # Turnip → 9999G
 python rf4mod.py param info rf3ItemEquipmentParam.bin  # weapon/armor ATK/MAT/DEF/MDF/STR/INT/VIT (+ boots word, accessory bit)
-python rf4mod.py param set rf3ItemEquipmentParam.bin 328 atk=999 -o w.bin  # Broadsword ATK→999
+python rf4mod.py param set rf3ItemEquipmentParam.bin 328 ATK=999 -o w.bin  # Broadsword ATK→999
 python rf4mod.py param set rf3ParamMagic.bin 0 "Damage multiplier=150" -o m.bin    # a percentage field takes a percentage (150 or 150%)
 python rf4mod.py param info rf3CropParam.bin           # crop stage-days + harvest/seed item
 python rf4mod.py param info rf3RecipeWeaponA.bin       # result + ingredients
@@ -1277,7 +1277,7 @@ python rf4mod.py str flags                             # status-word histogram +
 python rf4mod.py str specials                          # id-keyed forge behaviour (elements, ability bits, x2/x8)
 python rf4mod.py str fields                            # the 74-dword record reference with its readers
 python rf4mod.py str dump -o strengthening.csv         # everything, one row per item (or --json)
-python rf4mod.py str set 887 atk=500 -o new.bin        # edit a row byte-safely
+python rf4mod.py str set 887 ATK=500 -o new.bin        # edit a row byte-safely
 
 # See / edit which monsters a dungeon area spawns (Gen*.bin encounter tables)
 python rf4mod.py gen formap MAP_DUNG_A04       # which Gen file a map uses → GenA04.bin

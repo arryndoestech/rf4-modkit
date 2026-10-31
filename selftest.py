@@ -1100,6 +1100,13 @@ def test_fixed_point_fields():
            and nlcl.parse_value("200", "s32", 12) == 8192 and nlcl.parse_value("12", "u32", 8) == 31
            and nlcl.parse_value("20", "u32", nlcl.PERMILLE) == 200,
            (row["Damage multiplier"], row["MAT scaling"], row["ATK scaling"]))
+    use = pathlib.Path(BUNDLE_DIR) / "bundleMain" / "rf3UseItemParam.bin"
+    if use.exists():
+        tu = nlcl.NlclTable(use.read_bytes())
+        rf4._param_assign(tu, 1, "Fed: STR=5", "rf3UseItemParam")
+        rf4._param_assign(tu, 1, "0:s32=150", "rf3UseItemParam")
+        _check("param set: a field name with a colon (Fed: STR) is a name, 0:s32 an offset",
+               tu.row(1, "rf3UseItemParam")["Fed: STR"] == 5 and tu.get(1, 0) == 150)
 
 
 def test_flag_fields():
@@ -1325,10 +1332,10 @@ def test_bin_editors():
         tv = doc._str["tree"]
         first = tv.get_children()[0]
         tv.selection_set(first); root.update()
-        doc._str["cells"].set(first, "atk", "123")
-        doc._str["fields"].set("heal_hp", "value", "45")
+        doc._str["cells"].set(first, "ATK", "123")
+        doc._str["fields"].set("HP healed", "value", "45")
         row = strengthening.StrengtheningTable(doc.cur_data).row(int(first))
-        res["str"] = (row["atk"], row["heal_hp"])
+        res["str"] = (row["ATK"], row["HP healed"])
         # gift categories: add then remove an item
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
@@ -1653,10 +1660,11 @@ def test_param():
         # Item_UseOnActor scales +52/+56/+60 by str_base/int_base/vit_base -> STR/INT/VIT buffs;
         # +64..+156 mirror rf3ItemStrengthening S[50..73] (dish record dword k-34 += S[k])
         uo = {n: o for n, o, _ty in t.schema("rf3UseItemParam")["fields"]}
-        _check("rf3UseItemParam STR/INT/VIT buff names + full +64..+156 layout",
-               (uo["buff_str"], uo["buff_int"], uo["buff_vit"], uo["buff_vit_pct"]) == (32, 36, 40, 60)
-               and uo["fed_res_poison"] == 76 and uo["fed_proc_faint"] == 128
-               and uo["el_love"] == 156 and uo["perm_vit"] == 172 and "buff_atk" not in uo)
+        _check("rf3UseItemParam STR/INT/VIT buff names + full +64..+156 layout, in plain words",
+               (uo["Fed: STR"], uo["Fed: INT"], uo["Fed: VIT"], uo["Fed: VIT %"]) == (32, 36, 40, 60)
+               and uo["Fed: poison resist"] == 76 and uo["Fed: faint chance"] == 128
+               and uo["Fed: love resist"] == 156 and uo["VIT up"] == 172
+               and all(n[0].isupper() for n in uo))
     # MapOre_Rate: 25x32 rock configs — kind, break / scrap chance, 3 weighted items + rare.
     mo = next((p for p in EXTRACTED.rglob("MapOre_Rate.bin")), None)
     if mo:
@@ -4788,24 +4796,24 @@ def test_strengthening():
     _check("strengthening 1150 x 296 B", len(t) == 1150 and t.t.record_size == 296)
     r = t.row(887)   # Broken Ice Wall: the strongest plain forge material (Item_ComputeStats S[1..2])
     _check("strengthening core row (Broken Ice Wall ATK/MAT/difficulty)",
-           r.atk == 105 and r.mat == 95 and r.difficulty == 96)
+           r["ATK"] == 105 and r["MAT"] == 95 and r["Difficulty"] == 96)
     _check("strengthening reach (Glitta Augite +50%, Raccoon Leaf +25%)",
-           t.row(935).reach_scale == 2048 and t.row(883).reach_scale == 1024)
+           t.row(935)["Reach"] == 2048 and t.row(883)["Reach"] == 1024)
     _check("strengthening tier rows (1108 ATK+10/MAT+5, 1113 DEF+6/MDF+5, 1125 ATK+2000, 1149 MDF+780)",
-           t.row(1108).atk == 10 and t.row(1108).mat == 5 and t.row(1113)["def"] == 6
-           and t.row(1113).mdf == 5 and t.row(1125).atk == 2000 and t.row(1149).mdf == 780)
+           t.row(1108)["ATK"] == 10 and t.row(1108)["MAT"] == 5 and t.row(1113)["DEF"] == 6
+           and t.row(1113)["MDF"] == 5 and t.row(1125)["ATK"] == 2000 and t.row(1149)["MDF"] == 780)
     nonfood = sum(1 for i in range(strengthening.ITEM_ROWS) if t.row(i).is_non_food)
     _check("strengthening NON-FOOD marker on 633 ids (Crafting_CraftFromInputs bit 0x4000)",
            nonfood == 633 and t.row(329).is_non_food and not t.row(359).is_non_food,
            f"{nonfood} flagged; Steel Sword flagged, Veggieblade not")
     _check("strengthening status word decode (Withered Grass inflicts poison, RP -20%)",
-           "inflicts poison" in t.row(83).status_flags() and t.row(83).heal_rp_pct == -820)
+           "inflicts poison" in t.row(83).status_flags() and t.row(83)["RP healed (share of max)"] == -820)
     _check("strengthening heal fields (Invinciroid HP/RP 100%)",
-           t.row(121).heal_hp_pct == 4096 and t.row(121).heal_rp_pct == 4096)
+           t.row(121)["HP healed (share of max)"] == 4096 and t.row(121)["RP healed (share of max)"] == 4096)
     # edit round-trip through the generic NLCL writer
-    t.set(887, "atk", 500)
+    t.set(887, "ATK", 500)
     t2 = strengthening.StrengtheningTable(t.build())
-    _check("strengthening edit round-trip", t2.row(887).atk == 500 and t2.row(887).mat == 95)
+    _check("strengthening edit round-trip", t2.row(887)["ATK"] == 500 and t2.row(887)["MAT"] == 95)
     _check("strengthening nlcl schema agrees with the module",
            [f[0] for f in nlcl.FIELD_SCHEMAS["rf3ItemStrengthening"]["fields"]] == strengthening.NAMES)
 

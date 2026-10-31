@@ -3647,7 +3647,8 @@ def _param_assign(t, rec, assign, stem):
     the stored value); a bit-set
     field (nlcl.FLAG_FIELDS) takes +name / -name edits: Flags=+IgnoreDEF,-Fire,+0x400."""
     key, val = assign.split("=", 1)
-    if ":" in key:
+    named = any(n == key for n, _o, _t in (t.schema(stem) or {}).get("fields", ()))
+    if ":" in key and not named:                # "Fed: STR" is a name, "12:s32" an offset
         off_s, typ = key.split(":", 1)
         t.set(rec, int(off_s, 0), nlcl.parse_value(val, typ), typ)
     elif key.lstrip("+").isdigit() or key.lstrip("+").lower().startswith("0x"):
@@ -4237,7 +4238,7 @@ def build_parser():
     st5.add_argument("--all", action="store_true", help="json: include zero fields")
     st5.add_argument("--file")
     st5.set_defaults(func=cmd_str_dump)
-    st6 = stsub.add_parser("set", help="edit fields of one row: str set 887 atk=500 reach_scale=2048 -o new.bin")
+    st6 = stsub.add_parser("set", help="edit fields of one row: str set 887 ATK=500 Reach=2048 -o new.bin")
     st6.add_argument("item"); st6.add_argument("set", nargs="+", help="name=value (see `str fields`)")
     st6.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in Options keep the original)")
     st6.add_argument("--file")

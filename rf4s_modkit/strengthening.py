@@ -51,81 +51,81 @@ ITEM_ROWS = 1108          # rows 0..1107 are items; 1108..1149 are tier rows
 
 # name, dword index, group, unit, description
 FIELDS = [
-    ("difficulty", 0, "upgrade", "int",
+    ("Difficulty", 0, "upgrade", "int",
      "upgrade difficulty: Recipe_ComputeRpCostForOneIngredient cost base, upgrade XP, per-extra craft cost; item detail 'difficulty' row"),
-    ("atk", 1, "core", "int", "ATK added to gear that carries this material"),
-    ("mat", 2, "core", "int", "MAT added"),
-    ("def", 3, "core", "int", "DEF added"),
-    ("mdf", 4, "core", "int", "MDF added"),
-    ("str", 5, "core", "int", "STR added"),
-    ("int", 6, "core", "int", "INT added"),
-    ("vit", 7, "core", "int", "VIT added"),
-    ("knockout_buildup", 8, "core", "int", "knockout build-up per hit (vector +40 -> stats+44 -> AttackInfo+334, clamp 0..500): past 100 on the target, its next knockback ends in a collapse"),
-    ("unused9", 9, "unused", "int", "never read"),
-    ("crit", 10, "combat", "q12", "critical-hit chance (vector +44 -> stats+72, clamp 0..4096; Combat_ResolveHit rolls it against a 12-bit random)"),
-    ("knockback", 11, "combat", "q12", "knockback the wearer's hits deal (vector +48 -> stats+56; a weapon hit pushes 6 * this, clamp 0..0x4000)"),
-    ("stun", 12, "combat", "q12", "hit-stun the wearer's hits deal (vector +52 -> stats+60; adds 30 * this frames of flinch, clamp 0..0x4000)"),
-    ("unused13", 13, "unused", "int", "never read"),
-    ("proc_poison", 14, "attack_proc", "q12", "chance to poison on hit (weapon vector +56)"),
-    ("proc_seal", 15, "attack_proc", "q12", "chance to seal on hit"),
-    ("proc_paralysis", 16, "attack_proc", "q12", "chance to paralyse on hit"),
-    ("proc_sleep", 17, "attack_proc", "q12", "chance to sleep on hit"),
-    ("proc_fatigue", 18, "attack_proc", "q12", "chance to fatigue on hit"),
-    ("proc_cold", 19, "attack_proc", "q12", "chance to give a cold on hit"),
-    ("proc_faint", 20, "attack_proc", "q12", "chance to faint on hit"),
-    ("hp_drain_attack", 21, "attack_proc", "q12", "HP drained on hit (vector +84)"),
-    ("will_resist", 22, "resist", "q12", "will resist: lowers the knockout build-up taken from hits (vector +120 -> stats+48)"),
-    ("crit_res", 23, "combat", "q12", "critical-hit resist (vector +124 -> stats+76: the attacker's crit chance * (4096 - this))"),
-    ("knockback_res", 24, "combat", "q12", "knockback resist (vector +128 -> stats+64: knockback taken * (4096 - this))"),
-    ("res_poison", 25, "resist", "q12", "poison resist (4096 = immune)"),
-    ("res_seal", 26, "resist", "q12", "seal resist"),
-    ("res_paralysis", 27, "resist", "q12", "paralysis resist"),
-    ("res_sleep", 28, "resist", "q12", "sleep resist"),
-    ("res_fatigue", 29, "resist", "q12", "fatigue resist"),
-    ("res_cold", 30, "resist", "q12", "cold resist"),
-    ("res_faint", 31, "resist", "q12", "faint resist"),
-    ("res_drain", 32, "resist", "q12", "HP-drain resist (vector +160)"),
-    ("reach_scale", 33, "reach", "q12", "hit reach scale added to vector +168 (reach = 36 * (4096 + this) >> 12; +2048 = +50%)"),
-    ("heal_hp", 34, "heal", "int", "dish: HP healed (flat)"),
-    ("heal_rp", 35, "heal", "int", "dish: RP healed (flat)"),
-    ("heal_hp_pct", 36, "heal", "q12", "dish: HP healed as a share of max"),
-    ("heal_rp_pct", 37, "heal", "q12", "dish: RP healed as a share of max"),
-    ("status_word", 38, "status", "flags", "ORed into the dish effect word (cures / inflicts / leveliser) + bit 0x4000 NON-FOOD marker"),
-    ("unused39", 39, "unused", "int", "never read"),
-    ("buff_hp", 40, "fed_buff", "int", "while fed: max HP"),
-    ("buff_rp", 41, "fed_buff", "int", "while fed: max RP"),
-    ("buff_str", 42, "fed_buff", "int", "while fed: STR"),
-    ("buff_int", 43, "fed_buff", "int", "while fed: INT"),
-    ("buff_vit", 44, "fed_buff", "int", "while fed: VIT"),
-    ("buff_hp_pct", 45, "fed_buff", "q12", "while fed: max HP %"),
-    ("buff_rp_pct", 46, "fed_buff", "q12", "while fed: max RP %"),
-    ("buff_str_pct", 47, "fed_buff", "q12", "while fed: STR %"),
-    ("buff_int_pct", 48, "fed_buff", "q12", "while fed: INT %"),
-    ("buff_vit_pct", 49, "fed_buff", "q12", "while fed: VIT %"),
-    ("fed_crit", 50, "fed_buff", "q12", "while fed: critical-hit chance (dish +64 -> stats+72)"),
-    ("fed_knockback_res", 51, "fed_buff", "q12", "while fed: knockback resist (dish +68 -> stats+64)"),
-    ("fed_crit_res", 52, "fed_buff", "q12", "while fed: critical-hit resist (dish +72 -> stats+76)"),
-    ("fed_res_poison", 53, "fed_resist", "q12", "while fed: poison resist"),
-    ("fed_res_seal", 54, "fed_resist", "q12", "while fed: seal resist"),
-    ("fed_res_paralysis", 55, "fed_resist", "q12", "while fed: paralysis resist"),
-    ("fed_res_sleep", 56, "fed_resist", "q12", "while fed: sleep resist"),
-    ("fed_res_fatigue", 57, "fed_resist", "q12", "while fed: fatigue resist"),
-    ("fed_res_cold", 58, "fed_resist", "q12", "while fed: cold resist"),
-    ("fed_res_faint", 59, "fed_resist", "q12", "while fed: faint resist"),
-    ("fed_proc_poison", 60, "fed_proc", "q12", "while fed: poison on hit"),
-    ("fed_proc_seal", 61, "fed_proc", "q12", "while fed: seal on hit (unused in shipped data)"),
-    ("fed_proc_paralysis", 62, "fed_proc", "q12", "while fed: paralysis on hit (unused)"),
-    ("fed_proc_sleep", 63, "fed_proc", "q12", "while fed: sleep on hit (unused)"),
-    ("fed_proc_fatigue", 64, "fed_proc", "q12", "while fed: fatigue on hit (unused)"),
-    ("fed_proc_cold", 65, "fed_proc", "q12", "while fed: cold on hit (unused)"),
-    ("fed_proc_faint", 66, "fed_proc", "q12", "while fed: faint on hit (unused)"),
-    ("el_fire", 67, "element", "q12", "element affinity: fire (armor families / while fed; +4096 = resists it fully, negative = weak)"),
-    ("el_water", 68, "element", "q12", "element affinity: water"),
-    ("el_earth", 69, "element", "q12", "element affinity: earth"),
-    ("el_wind", 70, "element", "q12", "element affinity: wind"),
-    ("el_light", 71, "element", "q12", "element affinity: light"),
-    ("el_dark", 72, "element", "q12", "element affinity: dark"),
-    ("el_love", 73, "element", "q12", "element affinity: love"),
+    ("ATK", 1, "core", "int", "ATK added to gear that carries this material"),
+    ("MAT", 2, "core", "int", "MAT added"),
+    ("DEF", 3, "core", "int", "DEF added"),
+    ("MDF", 4, "core", "int", "MDF added"),
+    ("STR", 5, "core", "int", "STR added"),
+    ("INT", 6, "core", "int", "INT added"),
+    ("VIT", 7, "core", "int", "VIT added"),
+    ("Knockout build-up", 8, "core", "int", "knockout build-up per hit (vector +40 -> stats+44 -> AttackInfo+334, clamp 0..500): past 100 on the target, its next knockback ends in a collapse"),
+    ("unused 9", 9, "unused", "int", "never read"),
+    ("Critical chance", 10, "combat", "q12", "critical-hit chance (vector +44 -> stats+72, clamp 0..4096; Combat_ResolveHit rolls it against a 12-bit random)"),
+    ("Knockback", 11, "combat", "q12", "knockback the wearer's hits deal (vector +48 -> stats+56; a weapon hit pushes 6 * this, clamp 0..0x4000)"),
+    ("Stun", 12, "combat", "q12", "hit-stun the wearer's hits deal (vector +52 -> stats+60; adds 30 * this frames of flinch, clamp 0..0x4000)"),
+    ("unused 13", 13, "unused", "int", "never read"),
+    ("Poison chance", 14, "attack_proc", "q12", "chance to poison on hit (weapon vector +56)"),
+    ("Seal chance", 15, "attack_proc", "q12", "chance to seal on hit"),
+    ("Paralysis chance", 16, "attack_proc", "q12", "chance to paralyse on hit"),
+    ("Sleep chance", 17, "attack_proc", "q12", "chance to sleep on hit"),
+    ("Fatigue chance", 18, "attack_proc", "q12", "chance to fatigue on hit"),
+    ("Cold chance", 19, "attack_proc", "q12", "chance to give a cold on hit"),
+    ("Faint chance", 20, "attack_proc", "q12", "chance to faint on hit"),
+    ("HP drain", 21, "attack_proc", "q12", "HP drained on hit (vector +84)"),
+    ("Will resist", 22, "resist", "q12", "will resist: lowers the knockout build-up taken from hits (vector +120 -> stats+48)"),
+    ("Critical resist", 23, "combat", "q12", "critical-hit resist (vector +124 -> stats+76: the attacker's crit chance * (4096 - this))"),
+    ("Knockback resist", 24, "combat", "q12", "knockback resist (vector +128 -> stats+64: knockback taken * (4096 - this))"),
+    ("Poison resist", 25, "resist", "q12", "poison resist (4096 = immune)"),
+    ("Seal resist", 26, "resist", "q12", "seal resist"),
+    ("Paralysis resist", 27, "resist", "q12", "paralysis resist"),
+    ("Sleep resist", 28, "resist", "q12", "sleep resist"),
+    ("Fatigue resist", 29, "resist", "q12", "fatigue resist"),
+    ("Cold resist", 30, "resist", "q12", "cold resist"),
+    ("Faint resist", 31, "resist", "q12", "faint resist"),
+    ("Drain resist", 32, "resist", "q12", "HP-drain resist (vector +160)"),
+    ("Reach", 33, "reach", "q12", "hit reach scale added to vector +168 (reach = 36 * (4096 + this) >> 12; +2048 = +50%)"),
+    ("HP healed", 34, "heal", "int", "dish: HP healed (flat)"),
+    ("RP healed", 35, "heal", "int", "dish: RP healed (flat)"),
+    ("HP healed (share of max)", 36, "heal", "q12", "dish: HP healed as a share of max"),
+    ("RP healed (share of max)", 37, "heal", "q12", "dish: RP healed as a share of max"),
+    ("Effects", 38, "status", "flags", "ORed into the dish effect word (cures / inflicts / leveliser) + bit 0x4000 NON-FOOD marker"),
+    ("unused 39", 39, "unused", "int", "never read"),
+    ("Fed: max HP", 40, "fed_buff", "int", "while fed: max HP"),
+    ("Fed: max RP", 41, "fed_buff", "int", "while fed: max RP"),
+    ("Fed: STR", 42, "fed_buff", "int", "while fed: STR"),
+    ("Fed: INT", 43, "fed_buff", "int", "while fed: INT"),
+    ("Fed: VIT", 44, "fed_buff", "int", "while fed: VIT"),
+    ("Fed: max HP %", 45, "fed_buff", "q12", "while fed: max HP %"),
+    ("Fed: max RP %", 46, "fed_buff", "q12", "while fed: max RP %"),
+    ("Fed: STR %", 47, "fed_buff", "q12", "while fed: STR %"),
+    ("Fed: INT %", 48, "fed_buff", "q12", "while fed: INT %"),
+    ("Fed: VIT %", 49, "fed_buff", "q12", "while fed: VIT %"),
+    ("Fed: critical chance", 50, "fed_buff", "q12", "while fed: critical-hit chance (dish +64 -> stats+72)"),
+    ("Fed: knockback resist", 51, "fed_buff", "q12", "while fed: knockback resist (dish +68 -> stats+64)"),
+    ("Fed: critical resist", 52, "fed_buff", "q12", "while fed: critical-hit resist (dish +72 -> stats+76)"),
+    ("Fed: poison resist", 53, "fed_resist", "q12", "while fed: poison resist"),
+    ("Fed: seal resist", 54, "fed_resist", "q12", "while fed: seal resist"),
+    ("Fed: paralysis resist", 55, "fed_resist", "q12", "while fed: paralysis resist"),
+    ("Fed: sleep resist", 56, "fed_resist", "q12", "while fed: sleep resist"),
+    ("Fed: fatigue resist", 57, "fed_resist", "q12", "while fed: fatigue resist"),
+    ("Fed: cold resist", 58, "fed_resist", "q12", "while fed: cold resist"),
+    ("Fed: faint resist", 59, "fed_resist", "q12", "while fed: faint resist"),
+    ("Fed: poison chance", 60, "fed_proc", "q12", "while fed: poison on hit"),
+    ("Fed: seal chance", 61, "fed_proc", "q12", "while fed: seal on hit (unused in shipped data)"),
+    ("Fed: paralysis chance", 62, "fed_proc", "q12", "while fed: paralysis on hit (unused)"),
+    ("Fed: sleep chance", 63, "fed_proc", "q12", "while fed: sleep on hit (unused)"),
+    ("Fed: fatigue chance", 64, "fed_proc", "q12", "while fed: fatigue on hit (unused)"),
+    ("Fed: cold chance", 65, "fed_proc", "q12", "while fed: cold on hit (unused)"),
+    ("Fed: faint chance", 66, "fed_proc", "q12", "while fed: faint on hit (unused)"),
+    ("Fire resist", 67, "element", "q12", "element affinity: fire (armor families / while fed; +4096 = resists it fully, negative = weak)"),
+    ("Water resist", 68, "element", "q12", "element affinity: water"),
+    ("Earth resist", 69, "element", "q12", "element affinity: earth"),
+    ("Wind resist", 70, "element", "q12", "element affinity: wind"),
+    ("Light resist", 71, "element", "q12", "element affinity: light"),
+    ("Dark resist", 72, "element", "q12", "element affinity: dark"),
+    ("Love resist", 73, "element", "q12", "element affinity: love"),
 ]
 assert len(FIELDS) == DWORDS and [f[1] for f in FIELDS] == list(range(DWORDS))
 
@@ -250,7 +250,7 @@ def decode_status(word: int) -> list:
 
 
 class Row:
-    """One 74-dword record. Fields by attribute (r.atk) or by name (r['def'])."""
+    """One 74-dword record. Fields by name (r["ATK"], r["Fed: STR"])."""
     __slots__ = ("id", "values")
 
     def __init__(self, rid: int, values):
@@ -259,11 +259,6 @@ class Row:
 
     def __getitem__(self, name: str) -> int:
         return self.values[INDEX[name]]
-
-    def __getattr__(self, name: str) -> int:
-        if name in INDEX:
-            return self.values[INDEX[name]]
-        raise AttributeError(name)
 
     def nonzero(self, group: str | None = None) -> list:
         return [(n, self.values[INDEX[n]]) for n in NAMES
@@ -332,7 +327,7 @@ class StrengtheningTable:
         nz = r.nonzero()
         if not nz:
             out.append("  (all zero: no forge, dish or upgrade effect)")
-        out.append("  difficulty %d   (upgrade RP cost base and XP; item detail row)" % r.difficulty)
+        out.append("  difficulty %d   (upgrade RP cost base and XP; item detail row)" % r["Difficulty"])
         by_group = {}
         for n, v in nz:
             by_group.setdefault(GROUP[n], []).append((n, v))

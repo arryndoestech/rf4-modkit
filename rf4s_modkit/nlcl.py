@@ -674,27 +674,30 @@ FIELD_SCHEMAS = {
         # <= 14 on a higher id, which then reads past this table unless it is grown to it).
         "grow": "id-indexed:item id, gated by rf3ItemList category <= 14 (ids 0..317)",
         "fields": [
-            ("hp_recover", 0, "s32"), ("rp_recover", 4, "s32"),
-            ("hp_recover_pct", 8, "s32"), ("rp_recover_pct", 12, "s32"),
-            ("effect_bits", 16, "u32"), ("food_buff_min", 20, "s32"),
-            ("buff_hp", 24, "s32"), ("buff_rp", 28, "s32"), ("buff_str", 32, "s32"),
-            ("buff_int", 36, "s32"), ("buff_vit", 40, "s32"),
-            ("buff_hp_pct", 44, "s32"), ("buff_rp_pct", 48, "s32"),
-            ("buff_str_pct", 52, "s32"), ("buff_int_pct", 56, "s32"),
-            ("buff_vit_pct", 60, "s32"),
+            ("HP healed", 0, "s32"),          # HP it heals (negative = damage, e.g. failed dishes)
+            ("RP healed", 4, "s32"),          # RP it restores
+            ("HP healed (share of max)", 8, "s32"),
+            ("RP healed (share of max)", 12, "s32"),
+            ("Effects", 16, "u32"),           # cures / inflicts statuses, levels up: use the tick boxes
+            ("Fed time (x 3 min)", 20, "s32"),  # how long the fed buffs below last, in 3-minute steps (0 = none)
+            ("Fed: max HP", 24, "s32"), ("Fed: max RP", 28, "s32"), ("Fed: STR", 32, "s32"),
+            ("Fed: INT", 36, "s32"), ("Fed: VIT", 40, "s32"),
+            ("Fed: max HP %", 44, "s32"), ("Fed: max RP %", 48, "s32"),
+            ("Fed: STR %", 52, "s32"), ("Fed: INT %", 56, "s32"), ("Fed: VIT %", 60, "s32"),
             # +64/+68/+72: Actor_RecomputeStats (+0xB0180) adds them to stats+72 crit chance,
             # stats+64 knockback resist, stats+76 crit resist while fed (Q12)
-            ("fed_crit", 64, "s32"), ("fed_knockback_res", 68, "s32"), ("fed_crit_res", 72, "s32"),
-        ] + [(f"fed_res_{s}", 76 + 4 * k, "s32") for k, s in enumerate(
+            ("Fed: critical chance", 64, "s32"), ("Fed: knockback resist", 68, "s32"),
+            ("Fed: critical resist", 72, "s32"),
+        ] + [(f"Fed: {s} resist", 76 + 4 * k, "s32") for k, s in enumerate(
             ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
-        ] + [(f"fed_proc_{s}", 104 + 4 * k, "s32") for k, s in enumerate(
+        ] + [(f"Fed: {s} chance", 104 + 4 * k, "s32") for k, s in enumerate(
             ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
-        ] + [(f"el_{s}", 132 + 4 * k, "s32") for k, s in enumerate(
+        ] + [(f"Fed: {s} resist", 132 + 4 * k, "s32") for k, s in enumerate(
             ("fire", "water", "earth", "wind", "light", "dark", "love"))
         ] + [
-            ("perm_hp", 160, "s32"), ("perm_str", 164, "s32"),
-            ("perm_int", 168, "s32"), ("perm_vit", 172, "s32"),
-            ("level_scale", 176, "s32"),
+            ("Max HP up", 160, "s32"),        # raises max HP for good (stat-up items)
+            ("STR up", 164, "s32"), ("INT up", 168, "s32"), ("VIT up", 172, "s32"),
+            ("Per-level bonus", 176, "s32"),  # how much stronger each item level makes it (heals and buffs)
         ],
     },
     "rf3ItemEquipmentParam": {
@@ -878,20 +881,20 @@ FIELD_SCHEMAS = {
         # into the dish record but zero in the shipped file.
         "names": "item",
         "fields": [(n, 4 * k, "s32") for k, n in enumerate([
-            "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "knockout_buildup",
-            "unused9", "crit", "knockback", "stun", "unused13",
-            "proc_poison", "proc_seal", "proc_paralysis", "proc_sleep", "proc_fatigue",
-            "proc_cold", "proc_faint", "hp_drain_attack", "will_resist", "crit_res", "knockback_res",
-            "res_poison", "res_seal", "res_paralysis", "res_sleep", "res_fatigue", "res_cold",
-            "res_faint", "res_drain", "reach_scale", "heal_hp", "heal_rp", "heal_hp_pct",
-            "heal_rp_pct", "status_word", "unused39", "buff_hp", "buff_rp", "buff_str",
-            "buff_int", "buff_vit", "buff_hp_pct", "buff_rp_pct", "buff_str_pct",
-            "buff_int_pct", "buff_vit_pct", "fed_crit", "fed_knockback_res", "fed_crit_res",
-            "fed_res_poison", "fed_res_seal", "fed_res_paralysis", "fed_res_sleep",
-            "fed_res_fatigue", "fed_res_cold", "fed_res_faint", "fed_proc_poison",
-            "fed_proc_seal", "fed_proc_paralysis", "fed_proc_sleep", "fed_proc_fatigue",
-            "fed_proc_cold", "fed_proc_faint", "el_fire", "el_water", "el_earth", "el_wind",
-            "el_light", "el_dark", "el_love"])],
+            "Difficulty", "ATK", "MAT", "DEF", "MDF", "STR", "INT", "VIT", "Knockout build-up",
+            "unused 9", "Critical chance", "Knockback", "Stun", "unused 13",
+            "Poison chance", "Seal chance", "Paralysis chance", "Sleep chance", "Fatigue chance",
+            "Cold chance", "Faint chance", "HP drain", "Will resist", "Critical resist", "Knockback resist",
+            "Poison resist", "Seal resist", "Paralysis resist", "Sleep resist", "Fatigue resist", "Cold resist",
+            "Faint resist", "Drain resist", "Reach", "HP healed", "RP healed", "HP healed (share of max)",
+            "RP healed (share of max)", "Effects", "unused 39", "Fed: max HP", "Fed: max RP", "Fed: STR",
+            "Fed: INT", "Fed: VIT", "Fed: max HP %", "Fed: max RP %", "Fed: STR %",
+            "Fed: INT %", "Fed: VIT %", "Fed: critical chance", "Fed: knockback resist", "Fed: critical resist",
+            "Fed: poison resist", "Fed: seal resist", "Fed: paralysis resist", "Fed: sleep resist",
+            "Fed: fatigue resist", "Fed: cold resist", "Fed: faint resist", "Fed: poison chance",
+            "Fed: seal chance", "Fed: paralysis chance", "Fed: sleep chance", "Fed: fatigue chance",
+            "Fed: cold chance", "Fed: faint chance", "Fire resist", "Water resist", "Earth resist", "Wind resist",
+            "Light resist", "Dark resist", "Love resist"])],
     },
     "rf3ParamMagic": {
         # 446 x 148-byte ACTION/SKILL/MAGIC param table = archive 14817 (shared by weapon
@@ -1329,18 +1332,18 @@ FIXED_FIELDS = {
                     **{f"Drop {k} chance": PERMILLE for k in (1, 2, 3, 4)},
                     "Spawn asleep chance": 8, "Produce chance": 8,
                     "Hit arc": ANGLE, "View angle": ANGLE},
-    "rf3UseItemParam": {**{f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
-                                           "buff_rp_pct", "buff_str_pct", "buff_int_pct",
-                                           "buff_vit_pct", "fed_crit", "fed_knockback_res",
-                                           "fed_crit_res")},
-                        "level_scale": 15},                 # % per item level (4096 = 12.5%)
+    "rf3UseItemParam": {**{f: 12 for f in ("HP healed (share of max)", "RP healed (share of max)",
+                                           "Fed: max HP %", "Fed: max RP %", "Fed: STR %",
+                                           "Fed: INT %", "Fed: VIT %", "Fed: critical chance",
+                                           "Fed: knockback resist", "Fed: critical resist")},
+                        "Per-level bonus": 15},             # % per item level (4096 = 12.5%)
     "rf3ParamSkill": {**{f: AMOUNT for f in ("Max HP per level", "Max RP per level",
                                              "STR per level", "INT per level", "VIT per level",
                                              "Weapon ATK per level", "Spell ATK per level",
                                              "Element damage cut per level")},
                       "RP cost cut per level": 12},
     "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
-    "rf3ItemStrengthening": {"stun": 12},
+    "rf3ItemStrengthening": {"Stun": 12},
     "rf3ItemEquipmentParam": {f: 12 for f in (
         ["Critical chance", "Knockback", "Stun", "HP drain", "Will resist", "Critical resist",
          "Knockback resist", "HP drain resist", "Tool charge", "Reach", "Swing arc"]
@@ -1398,7 +1401,7 @@ FLAG_FIELDS = {
         0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
         0x2000000: "Faint drop Potato", 0x4000000: "Faint drop Turnip",
         0x40000000: "No critical hits"}},
-    "rf3UseItemParam": {"effect_bits": {
+    "rf3UseItemParam": {"Effects": {
         **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
         **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},
         0x2000: "Level up"}},
@@ -1455,7 +1458,7 @@ FLAG_FIELDS = {
             0x1000000: "Art of Magic: halves non-elemental damage",
             0x2000000: "Earth Pendant: stronger recovery items",
             0x4000000: "Strange Pendant: no DEF / MDF"}},
-    "rf3ItemStrengthening": {"status_word": {}},
+    "rf3ItemStrengthening": {"Effects": {}},
     # rf3ScheduleID.flags: see rf4s_modkit/schedule.py (copied to the NPC's day plan +5)
     "rf3ItemList": {"Flags": {
         0x1: "Can't be thrown away", 0x2: "Unique key item (tracked when given away; never bait)",
