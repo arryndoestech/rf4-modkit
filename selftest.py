@@ -1158,12 +1158,21 @@ def test_flag_fields():
         win8 = gui._flag_dialog(root, "t", "u8", 0x5, {}, got.append)
         n8 = len(win8.boxes)
         win8.destroy()
+        eff = nlcl.flag_bits("rf3ItemStrengthening", "Effects")
+        winc = gui._flag_dialog(root, "t", "s32", 0x40 | 0x10000, eff, got.append, all_named=True)
+        only = sorted(winc.boxes)
+        winc.ok()
     finally:
         root.destroy()
     _check("the tick-box dialog ticks the set bits, has one box per bit of the width (named first) "
            "and OK returns the new value",
-           ticked == [0x1, 0x80] and got == [0x280] and n8 == 8 and len(win.boxes) == 32,
+           ticked == [0x1, 0x80] and got[:1] == [0x280] and n8 == 8 and len(win.boxes) == 32,
            (ticked, got, n8))
+    _check("a bit set whose every read bit is named (Effects) shows only those bits, plus any other "
+           "bit already set, which OK keeps",
+           only == sorted(eff) + [0x10000] and got[1:] == [0x10040]
+           and nlcl.flag_bits_complete("rf3UseItemParam", "Effects")
+           and not nlcl.flag_bits_complete("rf3ParamMagic", "Flags"), (only, got))
 
 
 def test_bin_editors():

@@ -246,10 +246,11 @@ def _table_scrollbars(top, tv, widths=None, freeze=0):
     return vs, hs
 
 
-def _flag_dialog(parent, title, typ, value, names, on_ok):
+def _flag_dialog(parent, title, typ, value, names, on_ok, all_named=False):
     """One tick box per bit of a bit-set field: the named bits first ("Fire  0x01"), then every
-    other bit of the field's width as "bit N" (the ones set now are ticked). OK calls
-    on_ok(new value)."""
+    other bit of the field's width as "bit N" (the ones set now are ticked). With all_named
+    (every bit the game reads is named) the other bits are left out, except any already set,
+    which stay listed so OK never drops them. OK calls on_ok(new value)."""
     width = {"u8": 8, "s8": 8, "u16": 16, "s16": 16}.get(typ, 32)
     win = tk.Toplevel(parent)
     win.title(title)
@@ -269,10 +270,14 @@ def _flag_dialog(parent, title, typ, value, names, on_ok):
             ttk.Checkbutton(body, text=f"{nm}  ({nlcl.format_flags(mask, typ)})", variable=var).grid(
                 row=row + i // 2, column=(i % 2) * 2, columnspan=2, sticky="w", padx=(0, 12))
         row += (len(named) + 1) // 2
-    rest = [1 << k for k in range(width) if (1 << k) not in boxes]
-    ttk.Label(body, text="Other bits" if named else "Bits", font=("Segoe UI", 9, "bold")).grid(
-        row=row, column=0, columnspan=4, sticky="w", pady=(6 if named else 0, 0))
-    row += 1
+    rest = [1 << k for k in range(width) if (1 << k) not in boxes
+            and not (all_named and not value & (1 << k))]
+    if rest:
+        ttk.Label(body, text=("Other bits (set in the file; the game does not read them)" if all_named
+                              else "Other bits" if named else "Bits"),
+                  font=("Segoe UI", 9, "bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", pady=(6 if named else 0, 0))
+        row += 1
     for i, mask in enumerate(rest):
         var = tk.BooleanVar(value=bool(value & mask))
         boxes[mask] = var
@@ -6421,7 +6426,8 @@ class App:
                     history.append(before)
                 changed(i, f"Record {i}: {fn} set")
             return _flag_dialog(doc.content, f"{stem} #{i} — {fn}", typ, t.get(i, off, typ),
-                                nlcl.flag_bits(stem, fn), done)
+                                nlcl.flag_bits(stem, fn), done,
+                                all_named=nlcl.flag_bits_complete(stem, fn))
         doc._param_open_flags = open_flags          # (selftest)
 
         def put_field(n, row, text):

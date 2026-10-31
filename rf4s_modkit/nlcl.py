@@ -1730,6 +1730,21 @@ def schema_notes(stem: str) -> tuple[str, dict]:
     return res
 
 
+# Bit sets whose every bit the exe reads is named (checked 2026-11-01): the editor's tick-box
+# picker leaves the other bits out. The Effects words: Item_UseOnActor (+0xB4150) reads only
+# 0x3F / 0x1FC0 / 0x2000, Crafting_CraftFromInputs only 0x4000 of rf3ItemStrengthening's (and
+# Actor_RecomputeStats, Inventory_RefreshSlotStatPanel, script op 580 test none); rf3ItemList
+# Flags names all 8 bits of its byte.
+FLAG_FIELDS_COMPLETE = {
+    ("rf3UseItemParam", "Effects"), ("rf3ItemStrengthening", "Effects"), ("rf3ItemList", "Flags"),
+}
+
+
+def flag_bits_complete(stem: str, name: str) -> bool:
+    """True when every bit of this bit set the game reads is named (FLAG_FIELDS_COMPLETE)."""
+    return (canonical_stem(stem), name) in FLAG_FIELDS_COMPLETE
+
+
 def flag_bits(stem: str, name: str):
     """{mask: name} of a bit-set field ({} when its bits have no names yet), or None when the
     field is not a bit set."""
