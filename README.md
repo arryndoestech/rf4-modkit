@@ -1216,7 +1216,7 @@ python rf4mod.py res info ANIM_DUNG_A02.model
 
 # Edit game-data param tables (NLCL, ~80 tables): prices, equipment, crops, recipes…
 python rf4mod.py param info rf3ItemList.bin            # item id → sell price + name
-python rf4mod.py param set rf3ItemList.bin 29 sell_price=9999 -o new.bin   # Turnip → 9999G
+python rf4mod.py param set rf3ItemList.bin 29 "Sell price=9999" -o new.bin   # Turnip → 9999G
 python rf4mod.py param info rf3ItemEquipmentParam.bin  # weapon/armor ATK/MAT/DEF/MDF/STR/INT/VIT (+ boots word, accessory bit)
 python rf4mod.py param set rf3ItemEquipmentParam.bin 328 atk=999 -o w.bin  # Broadsword ATK→999
 python rf4mod.py param set rf3ParamMagic.bin 0 "Damage multiplier=150" -o m.bin    # a percentage field takes a percentage (150 or 150%)

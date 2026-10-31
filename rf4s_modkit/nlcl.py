@@ -58,8 +58,33 @@ class NlclError(Exception):
     pass
 
 
+def bit_range(typ: str):
+    """(storage type, first bit, bit count) of a bit-range type "u8:0-3" (bits 0..3 of a u8:
+    two values packed in one byte), else None."""
+    if ":" not in typ:
+        return None
+    base, _, span = typ.partition(":")
+    lo, _, hi = span.partition("-")
+    try:
+        lo, hi = int(lo), int(hi or lo)
+    except ValueError:
+        raise NlclError(f"bad bit range {typ!r} (e.g. u8:0-3)") from None
+    if base not in _FMT or not base.startswith("u") or not 0 <= lo <= hi < 8 * _FMT[base][1]:
+        raise NlclError(f"bad bit range {typ!r} (e.g. u8:0-3)")
+    return base, lo, hi - lo + 1
+
+
+def storage_type(typ: str) -> str:
+    """The whole int a field is stored in ("u8" for "u8:4-7")."""
+    br = bit_range(typ)
+    return br[0] if br else typ
+
+
 def type_range(typ: str) -> tuple[int, int]:
     """(min, max) value a field of int type `typ` can hold."""
+    br = bit_range(typ)
+    if br:
+        return 0, (1 << br[2]) - 1
     bits = _FMT[typ][1] * 8
     if typ.startswith("s"):
         return -(1 << (bits - 1)), (1 << (bits - 1)) - 1
@@ -199,18 +224,57 @@ FIELD_SCHEMAS = {
         # use_alt=0) uses sell_price (+12) with row byte +7. A row byte > 9 makes the item
         # worth 0 (the guard returns 0), so the row bytes are limited to 0..9.
         "grow": "fixed:1108",
+        # LAYOUT 2026-10-31 (every byte; readers = the 248 functions that touch g_itemDatabase
+        # plus the g_itemMetadataScratch copies, which only the +4 / +12 / +16 / +20 reads use):
+        #   +5 two nibbles. Low = how many fit in one bag slot: InventorySlot_AreLeveledSameItem
+        #     (> 1 = stackable), InventorySlot_MergeLeveledStacksSorted (free room = this - the
+        #     slot's count; a slot keeps one level byte per item, 9 at most). High = the quality
+        #     the item adds: Item_ApplyMaterialUpgrade (+0x3EC50) adds it (half below Forging 50)
+        #     to forged gear, Crafting_CraftFromInputs sums it over the inputs, and
+        #     Tile_ResolvePickupAndAwardItem_... puts it into a picked-up item's quality bits.
+        #   +20 flag byte (+21..+23 always 0; Quest_OnNonGiftItemConsumed reads the dword, &2):
+        #     0x1 Inventory_SpawnActionContextMenuFromSelectedSlot leaves out "Throw away";
+        #     0x2 g_monsterTameRecentItemsRing tracking (Item_IsOwnedOrKnownAnywhere,
+        #         ItemFx_PlayDeliveredToContainerById, Quest_OnNonGiftItemConsumed), never taken
+        #         as bait (Fishing_StashBaitFromSlot), no NPC throw reaction -- Escape and the two
+        #         Venti's Charms; 0x4 Fishing_SpawnFishActor sets the fish actor +29 bit 0x40 and
+        #         the fishing state machine a catch flag (Stick, Vine, scales, Engagement Ring...);
+        #     0x8 Item_SpawnVisualTask draws it as giant crop 8 * crop + 1107 (the giant crops);
+        #     0x10 / 0x20 / 0x40 / 0x80 Item_ComputeStats: the level tier rows (1108 for 0x50,
+        #         1113 for 0xA0) and quality tier rows (1118 / 1134 / 1126 / 1142) of
+        #         rf3ItemStrengthening that a weapon / armour / staff / accessory gets.
+        #   +24 read by nothing (a running index per kind, -1 for seeds, fish and spells).
+        #   +28 Item_IsInRandomItemPool (+0x97410): > 9000 never; > 900 (> 960 in rune rolls)
+        #     only once discovered; else offered once story progress reaches it. Also read by
+        #     ItemDrop_RollKillItemQualityTier / ItemDrop_RollItemLevelFromTierAndSkill and the
+        #     Shop_Roll* / Script_VMOp_RollRandom* pickers.
+        #   +32 Inventory_SortPage: the low 32 bits are the sort key within the item's page.
+        #   +36 u16 Player_ApplyEquippedWeaponEffectIdsByItem -> stats +214 for the EQUIPPED
+        #     weapon only: the effect level as_atk op 43 (operand -1) casts a staff's charged
+        #     shot at (staffs 1..9). Fish / crops carry values here that nothing reads. +38 unread.
         "fields": [
-            ("base_item", 0, "u32"),     # base/family item (King Cabbage -> Cabbage)
-            ("category", 4, "u8"),       # ItemMetadata_t +4: <= 14 = usable (rf3UseItemParam row), 0..2/46 = crops
-            ("buy_price_row", 6, "u8"),  # rf3PriceTable row for the shop buy price
-            ("sell_price_row", 7, "u8"),  # rf3PriceTable row for the sell / ship value
-            ("buy_price", 8, "u32"),     # shop buy price (before the 10%/20% sale discount)
-            ("sell_price", 12, "u32"),   # verified: Cabbage 680 / Turnip 30 / Pumpkin 110 (read unsigned)
-            ("crop_link", 16, "u32"),    # ItemMetadata_t.data_10: rf3CropParam record a SEED plants (Turnip Seed 753 -> 72)
+            ("Family", 0, "u32"),        # the item whose family it belongs to (King Cabbage -> Cabbage): "any X" recipe inputs and random picks of a family use it
+            ("Category", 4, "u8"),       # the item kind: 14 or less = usable (has an rf3UseItemParam row), 0..2 / 46 = crops
+            ("Stack size", 5, "u8:0-3"),  # how many fit in one bag slot (1 = does not stack, 9 at most)
+            ("Material quality", 5, "u8:4-7"),  # quality it adds when forged into gear (half below Forging 50) and when used in crafting
+            ("Buy price curve", 6, "u8"),  # rf3PriceTable row for the shop price at each level
+            ("Sell price curve", 7, "u8"),  # rf3PriceTable row for the selling / shipping value at each level
+            ("Buy price", 8, "u32"),     # shop price (before the 10% / 20% sale discount)
+            ("Sell price", 12, "u32"),   # selling / shipping value (Cabbage 680, Turnip 30)
+            ("Crop", 16, "u32"),         # the rf3CropParam row a seed plants or a crop belongs to (Turnip Seed -> 72)
+            ("Flags", 20, "u8"),         # what the game does with it: use the tick boxes
+            ("unused 21", 21, "u8"), ("unused 22", 22, "u16"),
+            ("unused 24", 24, "s32"),    # numbered per kind (-1 for seeds, fish, spells), but nothing reads it
+            ("Story unlock", 28, "u32"),  # shops, drops and rewards offer it only once the story reaches this (over 900: only after you found one, over 9000: never)
+            ("Sort order", 32, "u32"),   # its place when the bag is sorted
+            ("Staff shot level", 36, "u16"),  # staffs: the level their charged shot is cast at (1-9); unused for anything else
+            ("unused 38", 38, "u16"),
         ],
         "limits": {
-            "buy_price_row": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
-            "sell_price_row": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
+            "Buy price curve": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
+            "Sell price curve": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
+            "Stack size": (0, 9, "a bag slot keeps one level byte per item, 9 at most"),
+            "Staff shot level": (0, 9, "the damage formula caps the effect level at 9"),
         },
     },
     "rf3PriceTable": {
@@ -494,7 +558,7 @@ FIELD_SCHEMAS = {
         # AndTileInfo (RF4S.exe+0x2113D0) reads `g_currentMapTiles+32` (= archive 14807 + 28,
         # stored by FarmFieldTask_Spawn +0x1842B0 without reading the count) + 108*link. So a
         # 94th crop is reachable once a seed item links to it (`param set rf3ItemList.bin
-        # <seed> crop_link=93`). Caveat: FarmFieldTask_Spawn also copies FIXED row ranges
+        # <seed> Crop=93`). Caveat: FarmFieldTask_Spawn also copies FIXED row ranges
         # (0..25, 26..37, 38..87 by kind flag) into per-kind lists at spawn, so a new row is
         # outside those lists. AND (2026-10-30) Crop_TickGrowthForTile (+0x185240) only ticks tile
         # kinds 38..87 (the tile kind = the crop row, 7 bits): a planted row outside 38..87 never
@@ -1344,6 +1408,11 @@ FLAG_FIELDS = {
             0x4000000: "Strange Pendant: no DEF / MDF"}},
     "rf3ItemStrengthening": {"status_word": {}},
     # rf3ScheduleID.flags: see rf4s_modkit/schedule.py (copied to the NPC's day plan +5)
+    "rf3ItemList": {"Flags": {
+        0x1: "Can't be thrown away", 0x2: "Unique key item (tracked when given away; never bait)",
+        0x4: "Special fishing catch", 0x8: "Giant crop (drawn with its crop's giant model)",
+        0x10: "Weapon level / quality bonuses", 0x20: "Armour level / quality bonuses",
+        0x40: "Staff level / quality bonuses", 0x80: "Accessory level / quality bonuses"}},
     "rf3ScheduleID": {"flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
                                 0x8: "Ignore crowding"}},
     "rf3TxtShopNpc_split2_1": {"flag": {}},
@@ -1360,7 +1429,7 @@ FLAG_FIELDS = {
 REF_FIELDS = {
     "rf3Recipe": {f: "item" for f in ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6")},
     "MapOre_Rate": {f: "item" for f in ("Item 1", "Item 2", "Item 3", "Rare item")},
-    "rf3ItemList": {"base_item": "item"},
+    "rf3ItemList": {"Family": "item"},
     "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)
     "rf3TxtShopNpc_split2_1": {"char_id": "char"},
     "rf3TxtQuest_split3_1": {"client_id": "char"},
@@ -1736,12 +1805,24 @@ class NlclTable:
         return HEADER_SIZE + rec * self.record_size + off
 
     def get(self, rec: int, off: int, typ: str = "s32"):
+        br = bit_range(typ)
+        if br:
+            return (self.get(rec, off, br[0]) >> br[1]) & ((1 << br[2]) - 1)
         code, sz = _FMT[typ]
         if off + sz > self.record_size:            # same guard as set(): no cross-record read
             raise NlclError(f"{typ} at +{off} exceeds record size {self.record_size}")
         return struct.unpack_from(code, self.data, self._addr(rec, off))[0]
 
     def set(self, rec: int, off: int, value: int, typ: str = "s32"):
+        br = bit_range(typ)
+        if br:                                  # write those bits, keep the rest of the int
+            base, lo, n = br
+            value = int(value)
+            if not 0 <= value < (1 << n):
+                raise NlclError(f"value {value} does not fit {typ} (0..{(1 << n) - 1})")
+            mask = ((1 << n) - 1) << lo
+            self.set(rec, off, (self.get(rec, off, base) & ~mask) | (value << lo), base)
+            return
         if typ not in _FMT:
             raise NlclError(f"unknown field type {typ!r} (one of {', '.join(_FMT)})")
         code, sz = _FMT[typ]

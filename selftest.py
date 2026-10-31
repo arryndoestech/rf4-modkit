@@ -1593,7 +1593,7 @@ def test_param():
         t = nlcl.NlclTable.load(il)
         ok = t.get(1, 12) == 680 and t.get(29, 12) == 30   # Cabbage 680 / Turnip 30
         _check("rf3ItemList sell-price field", ok, "Cabbage=680, Turnip=30")
-        t.set_field(29, "sell_price", 9999, "rf3ItemList")
+        t.set_field(29, "Sell price", 9999, "rf3ItemList")
         blob = t.build()
         t2 = nlcl.NlclTable(blob)
         _check("NLCL edit round-trip",
@@ -1605,14 +1605,30 @@ def test_param():
         _rej = 0
         for _bad in (lambda: t.set(29, 4, 256, "u8"), lambda: t.set(29, 12, -1, "u32"),
                      lambda: t.set(29, 12, 1, "f32"), lambda: t.record(-1),
-                     lambda: t.set_field(29, "sell_price_row", 10, "rf3ItemList")):
+                     lambda: t.set_field(29, "Sell price curve", 10, "rf3ItemList")):
             try:
                 _bad()
             except nlcl.NlclError:
                 _rej += 1
         _check("NLCL set/record guards (width, type, index, price row 0..9)",
-               _rej == 5 and t.row(1, "rf3ItemList")["buy_price"] == 2800
-               and t.row(1, "rf3ItemList")["sell_price_row"] == 3)
+               _rej == 5 and t.row(1, "rf3ItemList")["Buy price"] == 2800
+               and t.row(1, "rf3ItemList")["Sell price curve"] == 3)
+        # +5 holds two values: stack size (low 4 bits) and material quality (high 4 bits)
+        r_ham = t.row(0, "rf3ItemList")
+        t.set_field(1, "Material quality", 3, "rf3ItemList")
+        both = t.row(1, "rf3ItemList")
+        _bad_nib = False
+        try:
+            t.set_field(1, "Stack size", 16, "rf3ItemList")
+        except nlcl.NlclError:
+            _bad_nib = True
+        _check("rf3ItemList +5 splits into Stack size / Material quality: Cabbage stacks 9 with "
+               "quality 6; writing one half keeps the other; 16 does not fit 4 bits",
+               (t.get(1, 5, "u8") & 0xF0) == 0x30 and both["Stack size"] == 9
+               and both["Material quality"] == 3 and _bad_nib
+               and nlcl.type_range("u8:4-7") == (0, 15) and nlcl.storage_type("u8:4-7") == "u8"
+               and nlcl.flag_bits("rf3ItemList", "Flags").get(0x10, "").startswith("Weapon"),
+               (r_ham, both))
     else:
         _skip("rf3ItemList field check", "rf3ItemList.bin not extracted")
     # rf3UseItemParam: row index = item id, +0 HP recovery / +4 RP recovery.
@@ -6970,7 +6986,7 @@ def test_rows_em_structural_skill():
             t = nlcl.NlclTable(raw)
             n = t.entry_count
             i = t.append_record(t.record(29))
-            t.set_field(i, "sell_price", 50, "rf3ItemList")
+            t.set_field(i, "Sell price", 50, "rf3ItemList")
             blob = t.build()
             t2 = nlcl.NlclTable(blob)
             _check("NLCL append_record: entry_count/byte_size rewritten, footer regenerated, row readable",
@@ -6995,7 +7011,7 @@ def test_rows_em_structural_skill():
                     rej += 1
             _check("NLCL row ops reject wrong size / bad index / structured (Gen) tables", rej == 4, str(rej))
             out = tmp / "il_add.bin"
-            _rfx.main(["param", "add", str(il), "--copy", "29", "--set", "sell_price=50", "-o", str(out)])
+            _rfx.main(["param", "add", str(il), "--copy", "29", "--set", "Sell price=50", "-o", str(out)])
             ta = nlcl.NlclTable.load(out)
             _rfx.main(["param", "remove", str(out), str(n), "-o", str(tmp / "il_rm.bin")])
             _check("CLI param add --copy/--set then param remove -> stock bytes",

@@ -4850,7 +4850,7 @@ def build_parser():
     q2.set_defaults(func=cmd_param_get)
     q3 = psub2.add_parser("set", help="edit fields of a record: name=val | OFF=val | OFF:type=val")
     q3.add_argument("file"); q3.add_argument("record", type=int)
-    q3.add_argument("set", nargs="+", help="e.g. sell_price=9999  or  12=9999  or  12:s32=9999")
+    q3.add_argument("set", nargs="+", help='e.g. "Sell price=9999"  or  12=9999  or  12:s32=9999')
     q3.add_argument("-o", "--out")
     q3.set_defaults(func=cmd_param_set)
     q4 = psub2.add_parser("csv", help="the named table view (schema columns + item names) as CSV")
@@ -4863,7 +4863,7 @@ def build_parser():
     q5.add_argument("--raw", action="store_true", help="dw0..dwN columns for every table")
     q5.set_defaults(func=cmd_param_csv_all)
     q6 = psub2.add_parser("add", help="append a row (copy of --copy N or zeros) + --set fields: "
-                                      "param add rf3ItemList.bin --copy 29 --set sell_price=50 -o out.bin")
+                                      "param add rf3ItemList.bin --copy 29 --set \"Sell price=50\" -o out.bin")
     q6.add_argument("file"); q6.add_argument("--copy", type=int, help="record index to duplicate")
     q6.add_argument("--at", type=int, help="insert at this index instead of appending (shifts later rows)")
     q6.add_argument("--set", nargs="+", help="assignments for the new row (param set grammar)")
