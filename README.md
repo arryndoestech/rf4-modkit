@@ -1289,13 +1289,13 @@ python rf4mod.py gen set GenA01.bin 0 1 --spawn 0=50 -o out.bin   # spawn Orc Ar
 python rf4mod.py monster show Orc              # full sheet: stats, drops(names), elements%, AI file
 python rf4mod.py monster list --range 48-80    # roster (id, name, HP, ATK, kind)
 python rf4mod.py monster free                  # cut ids usable for a data-only NEW monster
-python rf4mod.py monster set 49 --set hp=2000 flat_atk=150 elem_fire=4096 -o out.bin  # buff High Orc
+python rf4mod.py monster set 49 --set HP=2000 "ATK bonus=150" "Fire resist=4096" -o out.bin  # buff High Orc
 # author a brand-new monster in a cut slot (no EXE patch): clone art/behaviour, then retune
 python rf4mod.py monster clone --src 48 --dst 179 -o new.bin      # seed slot 179 from Orc
-python rf4mod.py monster set 179 --set hp=1500 flat_def=200 drop0_id=95 drop0_pm=300 --file new.bin -o new.bin
+python rf4mod.py monster set 179 --set HP=1500 "DEF bonus=200" "Drop 1=95" "Drop 1 chance=300" --file new.bin -o new.bin
 # …or do the WHOLE data-only new-monster mod in one shot (clone + name + encounter + package):
 python rf4mod.py monster new --name "Test Golem" --from Orc \
-    --set hp=1800 flat_atk=140 flat_def=250 elem_fire=-2048 drop0_id=95 drop0_pm=250 \
+    --set HP=1800 "ATK bonus=140" "DEF bonus=250" "Fire resist=-2048" "Drop 1=95" "Drop 1 chance=250" \
     --encounter GenA01.bin --out-dir mymod/     # writes rf3NpcParam.bin + rf3TxtNpc_* + GenA01.bin
 ```
 

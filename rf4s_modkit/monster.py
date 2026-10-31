@@ -30,11 +30,16 @@ STEM = "rf3NpcParam"
 RECORD_SIZE = 308
 NUM_RECORDS = 392
 
-# element-affinity field suffixes (schema fields elem_<name>), in attack-flag bit order
+# element affinities (schema fields "<Name> resist"), in attack-flag bit order
 ELEMENTS = ["fire", "water", "earth", "wind", "light", "dark", "love", "none"]
-# status-proc resist field suffixes (schema fields res_<name>), in the game's status-bit
-# order (proc mask / cure bits / resist skills 26..32): poison, seal, paralysis, sleep, ...
+# status-proc resists (schema fields "<Name> resist"), in the game's status-bit order (proc
+# mask / cure bits / resist skills 26..32): poison, seal, paralysis, sleep, ...
 STATUS = ["poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint", "drain"]
+
+
+def resist_field(key: str) -> str:
+    """The schema field of an ELEMENTS / STATUS key ("none" is the Neutral resist)."""
+    return ("Neutral" if key == "none" else key.capitalize()) + " resist"
 
 # Q12 fixed-point unit used by element/resist fields (4096 = 100%)
 Q12 = 4096
@@ -119,16 +124,16 @@ def sheet(table: nlcl.NlclTable, char_id: int,
 
     drops = []
     for slot in range(4):
-        iid = row[f"drop{slot}_id"] & 0x7FF
-        pm = row[f"drop{slot}_pm"]
+        iid = row[f"Drop {slot + 1}"] & 0x7FF
+        pm = row[f"Drop {slot + 1} chance"]
         if iid or pm:
             drops.append({
                 "slot": slot, "item_id": iid,
                 "item": item_names.get(iid, ""), "permille": pm,
             })
 
-    elements = {e: row[f"elem_{e}"] for e in ELEMENTS}
-    resists = {s: row[f"res_{s}"] for s in STATUS}
+    elements = {e: row[resist_field(e)] for e in ELEMENTS}
+    resists = {s: row[resist_field(s)] for s in STATUS}
     tot = base_totals(row)
 
     return {
@@ -136,25 +141,25 @@ def sheet(table: nlcl.NlclTable, char_id: int,
         "name": species_name(char_id, species),
         "semantics": id_semantics(char_id),
         "tameable": bool(species.get(char_id, {}).get("tameable")) if species else None,
-        "hp": row["hp"], "atk": tot["atk"], "def": tot["def"],
-        "mat": tot["mat"], "mdf": tot["mdf"], "kill_xp": row["kill_xp"],
-        "str": row["str"], "int": row["int"], "vit": row["vit"],
-        "flat_atk": row["flat_atk"], "flat_def": row["flat_def"],
-        "flat_mat": row["flat_mat"], "flat_mdf": row["flat_mdf"],
-        "level": row["base_level"], "tame_base": row["tame_base"],
-        "ai_script": row["ai_script"], "ai_file": ai_file(row["ai_script"]),
-        "model": row["model"], "anim": row["anim"],
+        "hp": row["HP"], "atk": tot["atk"], "def": tot["def"],
+        "mat": tot["mat"], "mdf": tot["mdf"], "kill_xp": row["Kill XP"],
+        "str": row["STR"], "int": row["INT"], "vit": row["VIT"],
+        "flat_atk": row["ATK bonus"], "flat_def": row["DEF bonus"],
+        "flat_mat": row["MAT bonus"], "flat_mdf": row["MDF bonus"],
+        "level": row["Level"], "tame_base": row["Tame chance"],
+        "ai_script": row["AI script"], "ai_file": ai_file(row["AI script"]),
+        "model": row["Model"], "anim": row["Skeleton"],
         "drops": drops, "elements": elements, "resists": resists,
     }
 
 
 def base_totals(row: dict) -> dict:
     """The template's ATK / DEF / MAT / MDF before level growth, as Actor_RecomputeAllStats
-    (+0xAD440) builds them: ATK = flat_atk + STR, MAT = flat_mat + INT,
-    DEF = flat_def + VIT/2, MDF = flat_mdf + VIT/2."""
-    half_vit = row["vit"] >> 1
-    return {"atk": row["flat_atk"] + row["str"], "def": row["flat_def"] + half_vit,
-            "mat": row["flat_mat"] + row["int"], "mdf": row["flat_mdf"] + half_vit}
+    (+0xAD440) builds them: ATK = ATK bonus + STR, MAT = MAT bonus + INT,
+    DEF = DEF bonus + VIT/2, MDF = MDF bonus + VIT/2."""
+    half_vit = row["VIT"] >> 1
+    return {"atk": row["ATK bonus"] + row["STR"], "def": row["DEF bonus"] + half_vit,
+            "mat": row["MAT bonus"] + row["INT"], "mdf": row["MDF bonus"] + half_vit}
 
 
 def _pct(v: int) -> str:
@@ -173,7 +178,7 @@ def render(table: nlcl.NlclTable, char_id: int,
     out.append(f"    = flat ATK {m['flat_atk']} DEF {m['flat_def']} MAT {m['flat_mat']}"
                f" MDF {m['flat_mdf']}  + STR {m['str']} INT {m['int']} VIT {m['vit']}"
                f"   (tame base {m['tame_base']})")
-    out.append(f"  AI {m['ai_script']} ({m['ai_file']})   model {m['model']}   anim {m['anim']}")
+    out.append(f"  AI {m['ai_script']} ({m['ai_file']})   model {m['model']}   skeleton {m['anim']}")
     if m["drops"]:
         out.append("  drops:")
         for d in m["drops"]:
@@ -200,7 +205,7 @@ def render_list(table: nlcl.NlclTable, species: dict | None = None,
     for cid in range(lo, hi + 1):
         row = table.row(cid, STEM)
         nm = species_name(cid, species) or "???"
-        out.append(f"{cid:>4}  {nm:<20} {row['hp']:>7} {base_totals(row)['atk']:>6}  "
+        out.append(f"{cid:>4}  {nm:<20} {row['HP']:>7} {base_totals(row)['atk']:>6}  "
                    f"{id_semantics(cid)}")
     return "\n".join(out)
 
@@ -242,17 +247,9 @@ def clone_record(table: nlcl.NlclTable, src: int, dst: int) -> None:
 
 
 def set_field(table: nlcl.NlclTable, char_id: int, field: str, value: int) -> None:
-    """Set a named schema field (hp/str/int/vit/flat_atk/flat_def/flat_mat/flat_mdf/
-    kill_xp/tame_base/base_level/ai_script/model/anim/drop*_id/drop*_pm/elem_*/res_*) on a
-    monster record. The retired names atk/def/mat raise with a hint (they named the wrong
-    stat: +44/+48/+52 are STR/INT/VIT)."""
-    if field in _RETIRED:
-        raise nlcl.NlclError(f"{field!r} is now {_RETIRED[field]!r} "
-                             f"(the stat columns are str / int / vit)")
+    """Set a named schema field ("HP", "STR", "ATK bonus", "Drop 1", "Fire resist", ... --
+    the names in nlcl.FIELD_SCHEMAS['rf3NpcParam']) on a monster record."""
     table.set_field(char_id, field, value, STEM)
-
-
-_RETIRED = {"atk": "flat_atk", "def": "flat_def", "mat": "flat_mat", "mdf": "flat_mdf"}
 
 
 def save(table: nlcl.NlclTable, path) -> None:

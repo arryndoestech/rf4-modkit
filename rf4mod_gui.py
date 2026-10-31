@@ -6869,7 +6869,7 @@ class App:
         fields = sch["fields"]
         ftyp = {fn: (off, typ) for fn, off, typ in fields}
         about, notes = nlcl.schema_notes(stem)
-        drop_ids = {fn for fn, _o, _t in fields if fn.startswith("drop") and fn.endswith("_id")}
+        drop_ids = {f"Drop {k}" for k in (1, 2, 3, 4)}           # 11-bit item ids
         fv = ttk.Treeview(pf, columns=("field", "value"), show="headings", height=10, selectmode="browse")
         fv.heading("field", text="field"); fv.column("field", width=150)
         fv.heading("value", text="value"); fv.column("value", width=200)
@@ -6895,7 +6895,8 @@ class App:
             if i is None:
                 return
             for fn, _o, _t in fields:
-                fv.insert("", "end", iid=fn, values=(fn, val_text(i, fn)))
+                if not fn.startswith("unused"):         # bytes the game never reads
+                    fv.insert("", "end", iid=fn, values=(fn, val_text(i, fn)))
 
         def fill(*_):
             tv.delete(*tv.get_children())
@@ -6908,7 +6909,7 @@ class App:
                 row = t.row(i, stem)
                 tot = monster.base_totals(row)   # ATK/DEF = flat + STR / VIT/2 (template)
                 tv.insert("", "end", iid=str(i),
-                          values=(i, nm, row["hp"], tot["atk"], tot["def"], monster.id_semantics(i)))
+                          values=(i, nm, row["HP"], tot["atk"], tot["def"], monster.id_semantics(i)))
                 shown += 1
                 if shown >= _max_rows():
                     break

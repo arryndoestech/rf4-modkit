@@ -728,7 +728,7 @@ def gate_hp(kind):
     if now != stamp:                        # (re)read: saving rf3NpcParam.bin shows at once
         try:
             t = nlcl.NlclTable.load(path)
-            _GATE_HP[2] = {k: t.row(k, monster.STEM)["hp"]
+            _GATE_HP[2] = {k: t.row(k, monster.STEM)["HP"]
                            for k in range(gen.GATE_KIND_LO, gen.GATE_KIND_HI + 1)}
         except Exception:  # noqa: BLE001
             _GATE_HP[2] = {}

@@ -1427,11 +1427,25 @@ def test_param():
         so = {n: o for n, o, _ty in t.schema("rf3NpcParam")["fields"]}
         orc = t.row(48, "rf3NpcParam")
         _check("rf3NpcParam STR/INT/VIT + flat stats + resist order (exe layout)",
-               (orc["str"], orc["int"], orc["vit"], orc["flat_atk"], orc["flat_def"]) == (5, 3, 4, 8, 2)
-               and orc["tame_base"] == 25 and orc["base_level"] == 2
-               and [so[f"res_{s}"] for s in ("poison", "seal", "paralysis", "sleep", "fatigue")]
+               (orc["STR"], orc["INT"], orc["VIT"], orc["ATK bonus"], orc["DEF bonus"]) == (5, 3, 4, 8, 2)
+               and orc["Tame chance"] == 25 and orc["Level"] == 2
+               and [so[f"{s} resist"] for s in ("Poison", "Seal", "Paralysis", "Sleep", "Fatigue")]
                == [184, 188, 192, 196, 200]
-               and t.row(1, "rf3NpcParam")["anim"] == -1)
+               and t.row(1, "rf3NpcParam")["Skeleton"] == -1)
+        # every byte of the 308-byte template is a field, once
+        cover = [0] * 308
+        for _n, o, ty in t.schema("rf3NpcParam")["fields"]:
+            for k in range(o, o + nlcl._FMT[ty][1]):
+                cover[k] += 1
+        ride = t.row(48, "rf3NpcParam")
+        _check("rf3NpcParam schema covers all 308 bytes exactly once, newly named fields read "
+               "the shipped data (Orc: hit arc 90 degrees, reach 37, ridden attack 2 = 1)",
+               cover == [1] * 308 and ride["Hit arc"] == 16384 and ride["Hit reach"] == 37
+               and ride["Ridden attack 2"] == 1 and ride["Size"] == 4096
+               and t.row(200, "rf3NpcParam")["Figurine height"] == 350
+               and nlcl.format_value(t.row(48, "rf3NpcParam")["Drop 1 chance"],
+                                     nlcl.fixed_bits("rf3NpcParam", "Drop 1 chance")).endswith("%"),
+               [k for k in range(308) if cover[k] != 1][:8])
         try:
             t.set_field(48, "def", 10, "rf3NpcParam")
             _ren = False
@@ -4632,7 +4646,7 @@ def test_monster():
            _amb["ai_script"] == 169 and _amb["ai_file"] == "AI_mb40_1.bin"
            and monster.sheet(t, 229)["ai_file"] == "AI_mb40_2.bin")
     _check("rf3NpcParam +276 transform_into / +292 home_map (Ambrosia 228 -> 229, Yokmir Forest 271)",
-           t.row(228, "rf3NpcParam").get("transform_into") == 229 and t.row(48, "rf3NpcParam").get("home_map") == 271)
+           t.row(228, "rf3NpcParam").get("Transforms into") == 229 and t.row(48, "rf3NpcParam").get("Home map") == 271)
     # ATK = flat_atk + STR, MAT = flat_mat + INT, DEF/MDF = flat + VIT/2 (Actor_RecomputeAllStats)
     _check("monster Orc(48) ATK/DEF/MAT/MDF from flat + STR/INT/VIT",
            (m["atk"], m["def"], m["mat"], m["mdf"]) == (13, 4, 5, 4)
@@ -4653,8 +4667,8 @@ def test_monster():
     # clone + edit round-trip (in-memory)
     monster.clone_record(t, 48, 179)
     _check("monster clone copies record", t.record(179) == t.record(48))
-    monster.set_field(t, 179, "hp", 1500)
-    monster.set_field(t, 179, "elem_fire", 4096)
+    monster.set_field(t, 179, "HP", 1500)
+    monster.set_field(t, 179, "Fire resist", 4096)
     m2 = monster.sheet(t, 179)
     _check("monster clone+edit", m2["hp"] == 1500 and m2["elements"]["fire"] == 4096
            and t.record(48) != t.record(179))

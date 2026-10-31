@@ -4348,7 +4348,8 @@ def build_parser():
                                        "model/anim/dropN_id/dropN_pm/elem_*/res_*)")
     mo3.add_argument("record", help="char_id number or exact monster name")
     mo3.add_argument("--set", nargs="+", required=True, metavar="FIELD=VALUE",
-                     help="e.g. --set hp=1200 flat_atk=90 drop0_id=95 drop0_pm=200 elem_fire=4096")
+                     help='e.g. --set HP=1200 "ATK bonus=90" "Drop 1=95" "Drop 1 chance=200" '
+                          '"Fire resist=4096" (stored values; the field names of `param info`)')
     mo3.add_argument("--file"); mo3.add_argument("-o", "--out")
     mo3.set_defaults(func=cmd_monster_set)
     mo4 = mosub.add_parser("clone", help="copy a monster's whole 308-byte template into another slot")

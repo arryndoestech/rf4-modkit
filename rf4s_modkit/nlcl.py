@@ -258,50 +258,162 @@ FIELD_SCHEMAS = {
         # +24 count, so any char id the game can reference (Gen rosters, scripts, `monster
         # new`) reaches its row; give it name/description lines in rf3TxtNpc_split2_1/_2.
         "grow": "id-indexed:char id (Gen rosters / scripts); names in rf3TxtNpc_split2_1/_2",
+        # COMPLETE LAYOUT 2026-10-31 (every byte of the 308; plain names). Readers: the 13
+        # Char_GetTemplate callers (Actor_RecomputeAllStats +0xAD440 copies most fields into the
+        # actor, Actor_LoadBaseStatsFromTemplate +0xAF940, Actor_ApplyLevelUp +0xB2CE0,
+        # Actor_AdvanceLevelByDays, Familiar_BumpGrowthStatsFromKill +0xB2A00, the transform
+        # actions) plus the functions that read archive 14812 directly at raw offsets (raw =
+        # template + 28): Character_TickPose3DPreview / CompanionMenu (+28 + +306 height), the
+        # face-icon resolver +0x3C9C0 (+252), Player_TransformToCharacterById (+0 / +32 / +272),
+        # GameSystems_Init + Children_TickSpawnPendingChildNpcsIfAny (+8 / +12 / +32),
+        # MonsterFarm_GetProduceItemIdLeveled +0x1E2720 / _TickDailyProduceDrop +0x1E2500
+        # (+300 / +304 / +305), DailyVisitor_PickWantedItem +0x1EC590 (+294),
+        # Quest_LoadDetailStrings + op 440 (+292), Town_BuildDailyGuestNpcRoster +0x23ACD0 (+34
+        # for the guests 24..47). Nothing else reads g_charTemplateBuffer.
+        #   +0 size (actor scale x/y/z), +4 body radius, +8 / +12 / +16 / +20 walk / run speed,
+        #     acceleration and braking (x 6758 / 11264 / 1280+1536 / 2048+512+768 >> 12)
+        #   +24 -> actor+176: the size of effects spawned on it (WorldObject_OnBreakDropLoot
+        #     scales its burst by 1.5x this; attack-timeline op 59 overrides it)
+        #   +28 height (head height = size * (+28 >> 2), hit radius +28 >> 1)
+        #   +32 1 = male body (default skeleton 14497 instead of 14255; actor flag 0x8000000)
+        #   +36 -> stats+224: Companion_AcquireTarget (+0x1E8F30) starts a freshly spawned
+        #     monster in its lying-down (asleep) sequence when a random byte is below it
+        #   +140 / +142 -> stats+52 / +80: the base hit arc (u16 angle, half width; 16384 = 90
+        #     degrees) and hit reach the attack timeline ops 13 / 12 scale
+        #     (AnimEvent_Op13_ScaleHitArc +0xAC280, AnimEvent_Op12_ScaleHitReach +0xAC0F0)
+        #   +144 -> stats+172 bit 0x1000; set on the flying / floating monsters, but the only
+        #     reader of that bit found is the player's XP x1.5 in Player_gainEXP
+        #   +224 movement class (& 3: actor move param 24 * class + 584)
+        #   +252 face icon: archive 17936 + this (monsters 48..253)
+        #   +255 -> actor+220 |= 0x1C: floats over half-blocks and deep water while wild
+        #   +256 model set: 48..253 = the monster model folder (12584 + model), else 933 + model
+        #   +260 sight range (0 = unlimited), +264 field of view (u16 angle, 65536 = 360)
+        #   +278 extra model (933 + this), +280 attack set (timeline archive 243 + this + N)
+        #   +282..+287 ridden attacks: Actor_TickHeldByCarrier starts
+        #     Actor_BeginAttackOrSkill(monster, +282/+284/+286, +283/+285/+287) on the rider's
+        #     three attack buttons (input bits 0x800 / 0x100 / 0x400); throwing it uses +283
+        #   +294 slay requests: DailyVisitor_PickWantedItem only picks this monster once
+        #     g_storyProgressFlag9bit >= it (39 after the ending)
+        #   +296..+299 when a companion defeats this monster it gains these bonus bytes
+        #     (HP / STR / INT / VIT, each capped at 255, the four together at 512); the HP byte
+        #     adds up to +50% max HP
+        #   +300 produce item, +304 nonzero = the produce gets bigger at levels 50 / 100,
+        #     +305 daily produce chance (passes when it >= a random byte)
+        #   +306 extra height for the companion-menu figurine
+        # No reader found: +6, +148 (set on hornets, chests and gates), +218, +222, +262,
+        # +266..+271, +290, +302; +276 is copied and never read.
         "fields": [
-            ("ai_script", 34, "u16"),
-            ("hp", 40, "u32"), ("str", 44, "s32"), ("int", 48, "s32"),
-            ("vit", 52, "s32"), ("kill_xp", 56, "u32"),
-            ("flat_atk", 60, "s32"), ("flat_mat", 64, "s32"), ("knockout_buildup", 68, "s32"),
-            ("flat_def", 72, "s32"), ("flat_mdf", 76, "s32"),
-            ("lvup_w_str", 80, "s32"), ("lvup_w_int", 84, "s32"), ("lvup_w_vit", 88, "s32"),
-            ("grow_atk_pct", 92, "s32"), ("grow_mat_pct", 96, "s32"),
-            ("grow_def_pct", 100, "s32"), ("grow_mdf_pct", 104, "s32"),
-            ("grow_hp_pct", 108, "s32"),
-            ("tame_base", 220, "u16"),   # MonsterTame_RollAttemptWithItem: 0 = untameable
-            ("base_level", 288, "u16"),  # spawn level for char ids >= 48
-            ("model", 272, "s16"), ("anim", 274, "s16"),   # -1 = none (the exe tests == -1)
-            ("drop0_id", 228, "u16"), ("drop1_id", 230, "u16"),
-            ("drop2_id", 232, "u16"), ("drop3_id", 234, "u16"),
-            ("drop0_pm", 236, "u32"), ("drop1_pm", 240, "u32"),
-            ("drop2_pm", 244, "u32"), ("drop3_pm", 248, "u32"),
-            ("elem_fire", 152, "s32"), ("elem_water", 156, "s32"),
-            ("elem_earth", 160, "s32"), ("elem_wind", 164, "s32"),
-            ("elem_light", 168, "s32"), ("elem_dark", 172, "s32"),
-            ("elem_none", 176, "s32"), ("elem_love", 180, "s32"),
-            ("res_poison", 184, "s16"), ("res_seal", 188, "s16"),
-            ("res_paralysis", 192, "s16"), ("res_sleep", 196, "s16"),
-            ("res_fatigue", 200, "s16"), ("res_cold", 204, "s16"),
-            ("res_faint", 208, "s16"), ("res_drain", 212, "s16"),
-            # +276: the form this monster transforms into (Raccoon 189 -> 221, Magnuto 220 <-> 221,
-            # Ambrosia 228 -> 229). Actor_RecomputeAllStats copies it to the actor (+0x224) but
-            # nothing reads it: the transforms themselves are AI scripted actions 0 / 2 / 11
-            # with the target id hard-coded (Ambrosia's caterpillar calls action 11 at <= 65 %
-            # HP, AI_mb40_1.bin). Informational: editing it changes nothing in game.
-            ("transform_into", 276, "u16"),
-            # 2026-10-30, Actor_RecomputeAllStats (+0xAD440) / Actor_LoadBaseStatsFromTemplate
-            # (+0xAF940) copy these into the actor's stats (Q12): will resist (stats+48),
-            # knockback its hits deal (+56) and hit-stun they deal (+60), knockback resist (+64),
-            # how much hit-stun it takes (+68, Combat_ResolveHit), crit chance (+72) and crit
-            # resist (+76); +216 its hits' HP drain; +254 nonzero = rideable (status 0x8000, the
-            # mount gate)
-            ("will_res", 112, "s32"), ("knockback", 116, "s32"), ("stun", 120, "s32"),
-            ("knockback_res", 124, "s32"), ("stun_taken", 128, "s32"), ("crit", 132, "s32"),
-            ("crit_res", 136, "s32"), ("hp_drain", 216, "s16"), ("rideable", 254, "u8"),
-            # +292: the monster's home map (Orc -> Yokmir Forest, Wooly -> Selphia Plain);
-            # op 440 GetNpcMapID reads it for hunting requests ("Go to <map> and get
-            # rid of N <monster>"). 0 for villagers.
-            ("home_map", 292, "s16"),     # op 440 reads it as a signed 16-bit
+            ("Size", 0, "s32"),                 # how big it is (100% = normal); scales the model and its collision
+            ("Body radius", 4, "u16"),          # the radius of its body for collisions and AI distances
+            ("unused 6", 6, "u16"),
+            ("Walk speed", 8, "s32"),           # 100% = the normal walking speed
+            ("Run speed", 12, "s32"),           # 100% = the normal running speed
+            ("Acceleration", 16, "s32"),        # how fast it gets up to speed (100% = normal)
+            ("Braking", 20, "s32"),             # how fast it slows down, also after a knockback (100% = normal)
+            ("Effect size", 24, "s32"),         # the size of effects shown on it, e.g. the burst when it breaks (100% = normal)
+            ("Height", 28, "s32"),              # how tall it is: sets its head height and how wide its hit area is
+            ("Male body", 32, "u16"),           # 1 = uses the male default skeleton
+            ("AI script", 34, "u16"),           # monsters: the AI_m file it runs (AI_m<this>.bin); guests 24-47: how likely they visit town
+            ("Spawn asleep chance", 36, "u32"),  # chance that it spawns lying asleep (256 = always)
+            ("HP", 40, "u32"),
+            ("STR", 44, "s32"),                 # adds to ATK
+            ("INT", 48, "s32"),                 # adds to MAT
+            ("VIT", 52, "s32"),                 # half of it adds to DEF and to MDF
+            ("Kill XP", 56, "u32"),             # XP for defeating it
+            ("ATK bonus", 60, "s32"),           # ATK = this + STR
+            ("MAT bonus", 64, "s32"),           # MAT = this + INT
+            ("Knockout build-up", 68, "s32"),   # each of its hits builds up a knockout on the target; past 100 the target collapses after its next knockback
+            ("DEF bonus", 72, "s32"),           # DEF = this + half of VIT
+            ("MDF bonus", 76, "s32"),           # MDF = this + half of VIT
+            ("Level-up STR weight", 80, "s32"),  # when it levels up, how often the point goes to STR (against INT and VIT)
+            ("Level-up INT weight", 84, "s32"),
+            ("Level-up VIT weight", 88, "s32"),
+            ("ATK growth", 92, "s32"),          # how much ATK it gains per level (100% = the standard curve)
+            ("MAT growth", 96, "s32"),
+            ("DEF growth", 100, "s32"),
+            ("MDF growth", 104, "s32"),
+            ("HP growth", 108, "s32"),
+            ("Will resist", 112, "s32"),        # lowers the knockout build-up it takes (100% = none)
+            ("Knockback", 116, "s32"),          # how far its hits knock targets back
+            ("Stun", 120, "s32"),               # how long its hits stun targets
+            ("Knockback resist", 124, "s32"),
+            ("Stun taken", 128, "s32"),         # how long it stays stunned when hit (0% = no stun)
+            ("Critical chance", 132, "s32"),
+            ("Critical resist", 136, "s32"),
+            ("Hit arc", 140, "u16"),            # how wide its body attacks reach to each side (16384 = 90 degrees); each attack scales it
+            ("Hit reach", 142, "u16"),          # how far its body attacks reach; each attack scales it
+            ("Floating type", 144, "u32"),      # 1 on flying and floating monsters; no effect on them found (the same flag gives the player 1.5x XP)
+            ("unused 148", 148, "u32"),         # 1 on the hornets, chests and gates; the game never reads it
+            ("Fire resist", 152, "s32"),        # + = takes less fire damage (100% = none), - = weak to it
+            ("Water resist", 156, "s32"),
+            ("Earth resist", 160, "s32"),
+            ("Wind resist", 164, "s32"),
+            ("Light resist", 168, "s32"),
+            ("Dark resist", 172, "s32"),
+            ("Neutral resist", 176, "s32"),     # for hits with no element
+            ("Love resist", 180, "s32"),
+            ("Poison resist", 184, "s16"),      # 100% = immune
+            ("unused 186", 186, "u16"),
+            ("Seal resist", 188, "s16"),
+            ("unused 190", 190, "u16"),
+            ("Paralysis resist", 192, "s16"),
+            ("unused 194", 194, "u16"),
+            ("Sleep resist", 196, "s16"),
+            ("unused 198", 198, "u16"),
+            ("Fatigue resist", 200, "s16"),
+            ("unused 202", 202, "u16"),
+            ("Cold resist", 204, "s16"),
+            ("unused 206", 206, "u16"),
+            ("Faint resist", 208, "s16"),
+            ("unused 210", 210, "u16"),
+            ("Drain resist", 212, "s16"),
+            ("unused 214", 214, "u16"),
+            ("HP drain", 216, "s16"),           # share of the damage its hits heal it by
+            ("unused 218", 218, "u16"),
+            ("Tame chance", 220, "u16"),        # 0 = cannot be tamed; the taming roll starts from twice this
+            ("unused 222", 222, "u16"),
+            ("Movement class", 224, "u32"),     # 0-3: which movement settings it uses
+            ("Drop 1", 228, "u16"),             # an item it can drop when defeated
+            ("Drop 2", 230, "u16"),
+            ("Drop 3", 232, "u16"),
+            ("Drop 4", 234, "u16"),
+            ("Drop 1 chance", 236, "u32"),      # chance of Drop 1 (100% = always; a bit more likely in dungeons)
+            ("Drop 2 chance", 240, "u32"),
+            ("Drop 3 chance", 244, "u32"),
+            ("Drop 4 chance", 248, "u32"),
+            ("Face icon", 252, "u16"),          # monsters: which face icon it shows
+            ("Rideable", 254, "u8"),            # 1 = can be ridden once tamed
+            ("Floats over water", 255, "u8"),   # 1 = crosses deep water and half-blocks while wild (not as a companion)
+            ("Model set", 256, "u32"),          # 48-253 = takes its model from the monster models, else from the character models
+            ("Sight range", 260, "u16"),        # how far it notices you (0 = no limit)
+            ("unused 262", 262, "u16"),
+            ("View angle", 264, "u16"),         # how wide it looks for you (65536 = all around)
+            ("unused 266", 266, "u16"),
+            ("unused 268", 268, "u16"),         # has values, but the game never reads them
+            ("unused 270", 270, "u16"),
+            ("Model", 272, "s16"),              # its model, counted within the model set (-1 = none)
+            ("Skeleton", 274, "s16"),           # its skeleton (-1 = the default one)
+            ("Transforms into", 276, "u16"),    # the form it turns into, for information only: the game never reads it (the AI scripts do the transforms)
+            ("Extra model", 278, "u16"),        # a second character model it loads
+            ("Attack set", 280, "u16"),         # which set of attack moves it uses
+            ("Ridden attack 1", 282, "u8"),     # the attack it does when its rider presses the first attack button
+            ("Ridden attack 1 variant", 283, "u8"),  # also the attack used when it is thrown
+            ("Ridden attack 2", 284, "u8"),     # the second attack button
+            ("Ridden attack 2 variant", 285, "u8"),
+            ("Ridden attack 3", 286, "u8"),     # the third attack button
+            ("Ridden attack 3 variant", 287, "u8"),
+            ("Level", 288, "u16"),              # its level when it spawns (monsters)
+            ("unused 290", 290, "u16"),
+            ("Home map", 292, "s16"),           # the map named in hunting requests ("Go to <map> ...")
+            ("Slay request from", 294, "u16"),  # story progress from which it can be the target of slay requests
+            ("Companion HP per kill", 296, "u8"),   # what a companion gains each time it defeats this monster
+            ("Companion STR per kill", 297, "u8"),
+            ("Companion INT per kill", 298, "u8"),
+            ("Companion VIT per kill", 299, "u8"),
+            ("Produce", 300, "u32"),            # the item it gives each day in a barn (0 = none)
+            ("Produce grows", 304, "u8"),       # 1 = the produce becomes the bigger size at levels 50 and 100
+            ("Produce chance", 305, "u8"),      # daily chance it gives its produce (255 = always)
+            ("Figurine height", 306, "s16"),    # extra height for its figure in the companion menu
         ],
     },
     "rf3CropParam": {
@@ -1014,17 +1126,24 @@ PERCENT = "pct"
 # AMOUNT marks a Q12 field that is an amount, not a share (4096 = 1 point): shown and typed as a
 # plain decimal number (0.5, 2), converted the way the shipped data was (0.1 -> 409, truncated).
 AMOUNT = "amount"
+# PERMILLE marks a field stored per mille (1000 = 100%), shown and typed as a percentage.
+PERMILLE = "permille"
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
                                       "knockback", "stagger", "Psn Atk%", "Seal Atk%",
                                       "Par Atk%", "Slp Atk%", "Ftg Atk%", "Sick Atk%",
                                       "Faint Atk%", "Drain Atk%", "RP% Cost")},
-    "rf3NpcParam": {**{f"elem_{e}": 12 for e in ("fire", "water", "earth", "wind", "light",
-                                                 "dark", "none", "love")},
-                    **{f"res_{s}": 12 for s in ("poison", "seal", "paralysis", "sleep",
-                                                "fatigue", "cold", "faint", "drain")},
-                    **{f: 12 for f in ("will_res", "knockback", "stun", "knockback_res",
-                                       "stun_taken", "crit", "crit_res", "hp_drain")}},
+    "rf3NpcParam": {**{f"{e} resist": 12 for e in ("Fire", "Water", "Earth", "Wind", "Light",
+                                                   "Dark", "Neutral", "Love", "Poison", "Seal",
+                                                   "Paralysis", "Sleep", "Fatigue", "Cold",
+                                                   "Faint", "Drain", "Will", "Knockback",
+                                                   "Critical")},
+                    **{f: 12 for f in ("Size", "Walk speed", "Run speed", "Acceleration",
+                                       "Braking", "Effect size", "Knockback", "Stun",
+                                       "Stun taken", "Critical chance", "HP drain")},
+                    **{f"{s} growth": PERCENT for s in ("ATK", "MAT", "DEF", "MDF", "HP")},
+                    **{f"Drop {k} chance": PERMILLE for k in (1, 2, 3, 4)},
+                    "Spawn asleep chance": 8, "Produce chance": 8},
     "rf3UseItemParam": {**{f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
                                            "buff_rp_pct", "buff_str_pct", "buff_int_pct",
                                            "buff_vit_pct", "fed_crit", "fed_knockback_res",
@@ -1176,6 +1295,8 @@ REF_FIELDS = {
     "rf3ParamSkillData": {f: "skill" for f in ("Skill 1", "Skill 2", "Skill 3")},
     "rf3ParamMagic": {"Skill Type": "skill"},
     "rf3ScheduleID": {"room": "room"},
+    "rf3NpcParam": {**{f"Drop {k}": "item" for k in (1, 2, 3, 4)}, "Produce": "item",
+                    "Home map": "room", "Transforms into": "char"},
 }
 _SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
 # Named values of plain fields (shown as "Name (value)" and picked from a list).
@@ -1370,7 +1491,8 @@ def fixed_bits(stem: str, name: str):
 
 def fixed_scale(bits) -> int:
     """The stored value that means 100%: 2**bits, or 100 for a PERCENT field."""
-    return 100 if bits == PERCENT else 4096 if bits == AMOUNT else 1 << bits
+    return 100 if bits == PERCENT else 1000 if bits == PERMILLE else 4096 if bits == AMOUNT \
+        else 1 << bits
 
 
 def _amount_raw(v: float) -> int:
