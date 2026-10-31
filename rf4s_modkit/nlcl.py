@@ -551,6 +551,32 @@ FIELD_SCHEMAS = {
         #                  (rows 0..25 debris / grass, 26..37 rocks, and crop rows with +104 bit 0x80
         #                  or 0x100) for Map_SpawnDailyRandomEntities' weighted picks (+0x186850):
         #                  how often that thing appears on its own (Branch 300, grasses 55 / 2 / 1).
+        # LAYOUT 2026-10-31 (every byte), checked in RF4S.exe:
+        #   +0..+3  the four stage lengths; TileTemplate_GetTotalGrowthDays sums all four
+        #           (Apple 3+19+20+20 = 62). +3 is NOT the regrow time (the old name).
+        #   +4..+11 MapEntity_GetSpriteScaleForGrowthStage: s8 seed / sprout / ripening / ripe,
+        #           s16 giant (+8) and withered (+10) -- only the tree rows set them.
+        #   +20     u8 body radius (Map_SpawnDailyRandomEntities, TileObject_ApplyToolHit).
+        #   +24     Tile_ResolvePickupAndAwardItem_FishingAndGeneric (+0x1893D0): after a harvest,
+        #           if +24 != 0, the crop has health and the soil has quality, the crop goes back
+        #           to stage 4 with maturity = (total days - this) << 8 = ripe again in +24 days.
+        #   +28     the yield: the same function's count base (0 = 1) and the tooltip
+        #           (TileObjectCursor_RefreshTooltip adds the soil's yield bits, clamps 1..9).
+        #           IDB note: TileTemplate_GetRegrowIntervalDays reads +28 and
+        #           TileTemplate_GetYieldPerHarvest reads +96 (the harvest item) -- misnamed.
+        #   +32     Weather_TickFieldEffects_RainWaterStormDebris: a storm picks a field tile;
+        #           protection = soil +4 bits 10..15 + this, clamped 0..63; a draw of 0..76
+        #           above protection / 63 * 100 hits the crop (TileObject_ApplyToolHit kind 10).
+        #   +36     Crop_BumpStatsAndRollHarvestDropAndNpcEvent: an event fires when a byte draw
+        #           < soil counter + 8 * this + 1 (villager visit 2009..2012 / friendship 2050).
+        #   +40     Crop_DecayAccumulatedStatsAfterHarvest takes it off the soil quality (soil
+        #           record +6) per harvest; the growth tick takes it on a night at 0 health.
+        #   +44 / +48 / +52 / +56 / +60  the bump: soil level / growth / crop level (ql) / size
+        #           / yield (no) counters (record +10 / +11 / +13 / +14 / +12), each step scaled
+        #           by the tier table at RF4S.exe+0x4D3B50; a full counter raises the tier.
+        #   +80 / +84 / +88 / +92  the decay: rate_growth -= (16*32*v) >> 12 (clamp 128..1280),
+        #           rate_ql / rate_sz / rate_no -= (8*32*v) >> 12 (docs: farm-crop system §6).
+        #   +14, +21..+23, +42 are read by nothing.
         # To reseason a crop: clear its old 0x1000..0x80000 bits, set the new boost bit
         # (+ the 3 off-season penalty bits if you want a single-season crop).
         # ADD ROW (2026-09-19): rows are addressed by the SEED ITEM's crop-link id -- the
@@ -566,17 +592,40 @@ FIELD_SCHEMAS = {
         "grow": "fixed:88",
         "names": "item", "name_field": "Harvest item",
         "fields": [
-            ("Stage 1 days", 0, "u8"),        # days from planting to the second growth stage
+            ("Stage 1 days", 0, "u8"),        # days in the first growth stage (the four stages add up to the growth time)
             ("Stage 2 days", 1, "u8"),        # days in the second stage
-            ("Stage 3 days", 2, "u8"),        # days in the third stage, then it can be harvested
-            ("Regrow days", 3, "u8"),         # days until it fruits again after a harvest; 0 = harvested once
+            ("Stage 3 days", 2, "u8"),        # days in the third stage
+            ("Stage 4 days", 3, "u8"),        # days in the fourth stage, then it is ripe
+            ("Seed sprite size", 4, "s8"),    # sprite size change in the seed stage (trees only; 0 = normal)
+            ("Sprout sprite size", 5, "s8"),  # ... in the sprout stage
+            ("Ripening sprite size", 6, "s8"),  # ... while ripening
+            ("Ripe sprite size", 7, "s8"),    # ... when ripe
+            ("Giant sprite size", 8, "s16"),  # ... when ripe and giant
+            ("Withered sprite size", 10, "s16"),  # ... when withered
             ("Wild spawn weight", 12, "u16"),  # how often it appears on its own on fields (debris, grass, wild crops)
+            ("unused 14", 14, "u16"),
             ("Health", 16, "u32"),            # the crop's starting health (the Magnifying Glass HP); low health risks withering
-            ("Drought penalty", 40, "u16"),   # growth lost each night its health is 0 (halved if watered that day)
+            ("Body radius", 20, "u8"),        # how much room it takes (collisions); giant / small tiers scale it
+            ("unused 21", 21, "u8"), ("unused 22", 22, "u16"),
+            ("Regrow days", 24, "u32"),       # after a harvest it is ripe again this many days later; 0 = harvested once
+            ("Yield", 28, "u32"),             # how many you harvest (0 = 1; the soil adds more, 9 at most)
+            ("Storm resistance", 32, "u32"),  # chance a storm leaves it alone, out of 63 (the soil adds to it)
+            ("Harvest event chance", 36, "u32"),  # how likely a harvest brings a villager visit or a friendship event
+            ("Soil quality cost", 40, "u16"),  # soil quality used up by each harvest, and each night it is parched (half if watered)
+            ("unused 42", 42, "u16"),
+            ("Soil level up", 44, "u32"),     # each harvest raises the soil's level by this much (its counter fills to 255, then the level goes up)
+            ("Soil growth up", 48, "u32"),    # each harvest raises the soil's growth speed tier by this much
+            ("Soil crop level up", 52, "u32"),  # each harvest raises the soil's crop level tier by this much
+            ("Soil size up", 56, "u32"),      # each harvest raises the soil's crop size tier by this much
+            ("Soil yield up", 60, "u32"),     # each harvest raises the soil's yield tier by this much
             ("Growth speed", 64, "u32"),      # how fast it moves through its stages (100% = normal; Formula fertilizers raise the same gain)
             ("Level gain", 68, "u32"),        # how fast its level rises (Greenifier raises the same gain)
             ("Size gain", 72, "u32"),         # how fast it grows toward giant size (Giantizer raises it, Minimizer lowers it)
             ("Yield gain", 76, "u32"),        # how fast the number you harvest rises
+            ("Soil growth drain", 80, "u32"),  # each harvest lowers the soil's growth speed by this / 8
+            ("Soil crop level drain", 84, "u32"),  # each harvest lowers the soil's crop level rate by this / 16
+            ("Soil size drain", 88, "u32"),   # each harvest lowers the soil's crop size rate by this / 16
+            ("Soil yield drain", 92, "u32"),  # each harvest lowers the soil's yield rate by this / 16
             ("Harvest item", 96, "u32"),      # the item you get when you harvest it
             ("Seed item", 100, "u32"),        # the seed that plants it
             ("Seasons", 104, "u32"),          # which seasons it grows in (and how it is harvested): use the tick boxes

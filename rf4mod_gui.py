@@ -6759,8 +6759,9 @@ class App:
         ttk.Checkbutton(bar, text="planted crops only", variable=only_crops).pack(side="left", padx=6)
 
         ITEM_COLS = ("Harvest item", "Seed item")
-        show_cols = ["Stage 1 days", "Stage 2 days", "Stage 3 days", "Regrow days", "Health",
-                     "Drought penalty", "Growth speed", "Level gain", "Size gain", "Yield gain",
+        show_cols = ["Stage 1 days", "Stage 2 days", "Stage 3 days", "Stage 4 days", "Regrow days",
+                     "Yield", "Health", "Soil quality cost", "Growth speed", "Level gain", "Size gain",
+                     "Yield gain",
                      *ITEM_COLS]
         cols = ["#"] + show_cols + ["grows", "name"]
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)

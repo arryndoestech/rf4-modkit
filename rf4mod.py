@@ -3720,7 +3720,7 @@ def _crop_load():
 
 def _crop_is_planted(row):
     """A real farm crop: has growth stages, or carries a season affinity."""
-    return bool(row["Stage 1 days"] or row["Stage 2 days"] or row["Stage 3 days"]
+    return bool(row["Stage 1 days"] or row["Stage 2 days"] or row["Stage 3 days"] or row["Stage 4 days"]
                 or (row["Seasons"] & nlcl._CROP_SEASON_MASK))
 
 
@@ -3730,9 +3730,9 @@ def cmd_crop_show(a):
     row = t.row(a.record, p.stem)
     dec = nlcl.crop_season_decode(row["Seasons"])
     print(f"rec {a.record}: {namefn(row['Harvest item']) or '(unnamed)'}")
-    print(f"  stage days [{row['Stage 1 days']},{row['Stage 2 days']},{row['Stage 3 days']}]"
-          f"  regrow days {row['Regrow days']}  health {row['Health']}"
-          f"  drought penalty {row['Drought penalty']}")
+    print(f"  stage days [{row['Stage 1 days']},{row['Stage 2 days']},{row['Stage 3 days']},"
+          f"{row['Stage 4 days']}]  regrow days {row['Regrow days']}  yield {row['Yield']}"
+          f"  health {row['Health']}  soil quality cost {row['Soil quality cost']}")
     print(f"  harvest item {row['Harvest item']} ({namefn(row['Harvest item'])})"
           f"   seed item {row['Seed item']} ({namefn(row['Seed item'])})")
     print(f"  season: grows-well={dec['grows']}  penalized={dec['penalized']}"
@@ -3751,7 +3751,7 @@ def cmd_crop_list(a):
             continue
         dec = nlcl.crop_season_decode(row["Seasons"])
         print(f"  {i:3d}  {(namefn(row['Harvest item']) or ''):24s}"
-              f"  grows={'/'.join(dec['grows']):20s}  drought penalty={row['Drought penalty']}")
+              f"  grows={'/'.join(dec['grows']):20s}  regrow={row['Regrow days']}  yield={row['Yield']}")
         n += 1
     print(f"  ({n} crops)")
 

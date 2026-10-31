@@ -1416,10 +1416,20 @@ def test_param():
                t.get(72, 96, "u32") == 29 and [t.get(72, k, "u8") for k in range(4)] == [1, 1, 1, 0],
                "Turnip harvest=29, stages [1,1,1,0]")
         # growth-tick fields added 2026-07-20 (dual-binary verified): water@+40, season@+104
-        _check("rf3CropParam drought penalty / seasons fields",
+        _check("rf3CropParam soil quality cost / seasons fields",
                t.get(55, 40, "u16") == 8
                and nlcl.crop_season_decode(t.get(55, 104, "u32"))["grows"] == ["summer"],
-               "Pineapple(55) drought penalty=8, season affinity=summer")
+               "Pineapple(55) soil quality cost=8, season affinity=summer")
+        straw, apple = t.row(38, cp.stem), t.row(81, cp.stem)
+        _sz = {"u8": 1, "s8": 1, "u16": 2, "s16": 2}
+        _check("rf3CropParam: every byte of the 108 named; Strawberry regrows in 3 days with "
+               "yield 6, Apple's four stages add up to 62 days and its tree sprite sizes are signed",
+               sum(_sz.get(ty, 4) for _n, _o, ty in t.schema(cp.stem)["fields"]) == 108
+               and (straw["Regrow days"], straw["Yield"], straw["Stage 4 days"]) == (3, 6, 4)
+               and sum(apple[f"Stage {k} days"] for k in (1, 2, 3, 4)) == 62
+               and apple["Seed sprite size"] == -4 and apple["Giant sprite size"] == -44
+               and apple["Storm resistance"] == 40 and t.schema(cp.stem).get("grow") == "fixed:88",
+               (straw, apple))
         # crop_season_encode: reseason keeps low property bits + flips the affinity
         _cs = t.get(40, 104, "u32")
         _cn = nlcl.crop_season_encode(_cs, ["winter"], single=True)
