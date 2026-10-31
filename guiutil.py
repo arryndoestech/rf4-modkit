@@ -639,11 +639,11 @@ class CellEdit:
 
     COLOR = "#f08c00"                       # shows on a selected (blue) row and on a plain one
 
-    def __init__(self, tv, cols, title="Edit failed"):
+    def __init__(self, tv, cols, title="Edit failed", sort=True):
         self.tv, self.cols, self.title = tv, cols, title
         self.cur = None                         # (iid, column) under the cell cursor
         self.box = None                         # the open edit box
-        if not hasattr(tv, "_table_sort"):      # every edited table sorts by a heading click too
+        if sort and not hasattr(tv, "_table_sort"):     # a heading click sorts the rows too
             TableSort(tv)
         self._outline = [tk.Frame(tv, background=self.COLOR, width=2, height=2) for _ in range(4)]
         for seq, fn in (("<ButtonRelease-1>", self._click), ("<Double-Button-1>", self._dbl),

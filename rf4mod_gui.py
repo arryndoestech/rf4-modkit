@@ -4779,16 +4779,27 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
-        low = ttk.PanedWindow(doc.content, orient="horizontal")
-        low.pack(fill="x", padx=6, pady=4)
-        pf = ttk.Frame(low); low.add(pf, weight=1)
-        fv = ttk.Treeview(pf, columns=("field", "value"), show="headings", height=11, selectmode="browse")
-        fv.heading("field", text="field"); fv.column("field", width=170)
-        fv.heading("value", text="value"); fv.column("value", width=110)
+        # the selected item: every field, grouped by what it does, with its meaning; the
+        # notes line holds what the numbers don't say (status word, id-keyed behaviour)
+        low = ttk.Frame(doc.content)
+        low.pack(fill="both", padx=6, pady=4)
+        head = ttk.Frame(low); head.pack(fill="x")
+        sel_lbl = ttk.Label(head, font=("Segoe UI", 9, "bold"),
+                            text="Select a row; click a value and type to change it.")
+        sel_lbl.pack(side="left")
+        fields_nz = tk.BooleanVar(value=False)
+        ttk.Checkbutton(head, text="nonzero fields only", variable=fields_nz,
+                        command=lambda: fill_fields()).pack(side="right")
+        notes_lbl = ttk.Label(low, foreground="#555", justify="left")
+        notes_lbl.pack(fill="x")
+        notes_lbl.bind("<Configure>", lambda e: notes_lbl.config(wraplength=max(200, e.width - 8)))
+        pf = ttk.Frame(low); pf.pack(fill="both", expand=True)
+        fv = ttk.Treeview(pf, columns=("value", "meaning"), show="tree headings", height=11,
+                          selectmode="browse")
+        fv.heading("#0", text="field"); fv.column("#0", width=230)
+        fv.heading("value", text="value"); fv.column("value", width=130)
+        fv.heading("meaning", text="meaning"); fv.column("meaning", width=620)
         _table_scrollbars(pf, fv)
-        df = ttk.Frame(low); low.add(df, weight=2)
-        detail = tk.Text(df, height=12, wrap="word")
-        detail.pack(fill="both", expand=True)
         cur = {"i": None}
         history = []
 
@@ -4797,20 +4808,33 @@ class App:
             return ("0x%X" % v) if fn == "status_word" else str(v)
 
         def fill_fields():
+            keep = fv.focus()
             fv.delete(*fv.get_children())
-            if cur["i"] is not None:
-                for fn in strengthening.NAMES:
-                    fv.insert("", "end", iid=fn, values=(fn, shown(cur["i"], fn)))
+            i = cur["i"]
+            if i is None:
+                return
+            r = t.row(i)
+            for g in strengthening.GROUPS:
+                fns = [fn for fn in strengthening.NAMES if strengthening.GROUP[fn] == g
+                       and (r[fn] or not fields_nz.get())]
+                if not fns:
+                    continue
+                gid = fv.insert("", "end", iid="g:" + g, text=strengthening.GROUP_TITLES[g],
+                                open=g != "unused")
+                for fn in fns:
+                    fv.insert(gid, "end", iid=fn, text=fn,
+                              values=(strengthening.value_text(fn, r[fn]), strengthening.DOC[fn]))
+            if keep and fv.exists(keep):
+                fv.selection_set(keep); fv.focus(keep); fv.see(keep)
 
         def on_select(*_):
             sel = tv.selection()
             if not sel:
                 return
             cur["i"] = int(sel[0])
+            sel_lbl.config(text=f"#{cur['i']} {t.label(cur['i'], names)}")
+            notes_lbl.config(text="   ·   ".join(t.notes(cur["i"])))
             fill_fields()
-            detail.config(state="normal"); detail.delete("1.0", "end")
-            detail.insert("end", t.render(cur["i"], names))
-            detail.config(state="disabled")
         tv.bind("<<TreeviewSelect>>", on_select)
 
         def put(i, fn, text):
@@ -4838,10 +4862,9 @@ class App:
                                    "put": lambda row, text, fn=fn: put(row, fn, text)} for fn in show})
         fcells = CellEdit(fv, {"value": {"get": lambda fn: shown(cur["i"], fn),
                                          "put": lambda fn, text: put(cur["i"], fn, text),
-                                         "can": lambda fn: cur["i"] is not None}})
+                                         "can": lambda fn: cur["i"] is not None and fn in strengthening.INDEX}},
+                          sort=False)
         doc._str = dict(tree=tv, cells=cells, fields=fcells, undo=undo)       # (selftest)
-        detail.insert("end", "Select a row to see all its values; click a value and type to change it.")
-        detail.config(state="disabled")
 
     def _view_gifts(self, name, data):
         """rf3PresentNpc*.bin -- a villager's gift preferences (loved / liked / disliked lists).

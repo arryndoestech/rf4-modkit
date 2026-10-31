@@ -136,6 +136,21 @@ GROUP = {f[0]: f[2] for f in FIELDS}
 DOC = {f[0]: f[4] for f in FIELDS}
 GROUPS = ("upgrade", "core", "combat", "attack_proc", "resist", "reach", "heal", "status",
           "fed_buff", "fed_resist", "fed_proc", "element", "unused")
+GROUP_TITLES = {
+    "upgrade": "upgrading",
+    "core": "forged into gear (Item_ComputeStats): core stats",
+    "combat": "forged into gear: crit / knockback / stun",
+    "attack_proc": "forged into a weapon: on-hit procs",
+    "resist": "forged into gear: resists",
+    "reach": "forged into a weapon: reach",
+    "element": "element affinity (armor families when forged; any dish while fed)",
+    "heal": "eaten as an ingredient of a dish: heals",
+    "status": "status word (dish effect bits + the non-food marker)",
+    "fed_buff": "while fed: stat buff",
+    "fed_resist": "while fed: resists",
+    "fed_proc": "while fed: on-hit procs",
+    "unused": "never read by the game",
+}
 
 # S[38]: the same bit layout as the rf3UseItemParam +16 effect word, plus bit 14.
 STATUS_BITS = [
@@ -321,38 +336,32 @@ class StrengtheningTable:
         by_group = {}
         for n, v in nz:
             by_group.setdefault(GROUP[n], []).append((n, v))
-        titles = {
-            "core": "forged into gear (Item_ComputeStats): core stats",
-            "combat": "forged into gear: crit / knockback / stun",
-            "attack_proc": "forged into a weapon: on-hit procs",
-            "resist": "forged into gear: resists",
-            "reach": "forged into a weapon: reach",
-            "element": "element affinity (armor families when forged; any dish while fed)",
-            "heal": "eaten as an ingredient of a dish: heals",
-            "fed_buff": "while fed: stat buff",
-            "fed_resist": "while fed: resists",
-            "fed_proc": "while fed: on-hit procs",
-        }
         for g in GROUPS:
             if g in ("status", "unused", "upgrade") or g not in by_group:
                 continue
-            out.append("  " + titles[g] + ":")
+            out.append("  " + GROUP_TITLES[g] + ":")
             for n, v in by_group[g]:
                 out.append("    %-20s %s" % (n, value_text(n, v)))
-        flags = r.status_flags()
-        if flags:
-            out.append("  status word 0x%X:" % r.status_word)
-            for f in flags:
-                out.append("    " + f)
-        else:
-            out.append("  status word 0: food-class item (cookable), no cure / inflict bits")
-        if rid in FORGE_SPECIALS:
-            out.append("  id-keyed forge behaviour: " + FORGE_SPECIALS[rid])
-        if rid < ITEM_ROWS and rid <= 47:
-            out.append("  id-keyed forge behaviour: ability bit 0x10000000 (id <= 47; no reader found)")
+        out += ["  " + line for line in self.notes(rid)]
         for n, v in by_group.get("unused", []):
             out.append("  NOTE unused dword %s = %d" % (n, v))
         return "\n".join(out)
+
+    def notes(self, rid: int) -> list:
+        """What a row's numbers don't say by themselves: its status word decoded, and the
+        behaviour the game keys on the item id (not stored in the row)."""
+        r = self.row(rid)
+        out = []
+        flags = r.status_flags()
+        if flags:
+            out.append("status word 0x%X: %s" % (r.status_word, "; ".join(flags)))
+        else:
+            out.append("status word 0: food-class item (cookable), no cure / inflict bits")
+        if rid in FORGE_SPECIALS:
+            out.append("id-keyed forge behaviour: " + FORGE_SPECIALS[rid])
+        if rid < ITEM_ROWS and rid <= 47:
+            out.append("id-keyed forge behaviour: ability bit 0x10000000 (id <= 47; no reader found)")
+        return out
 
     def render_list(self, names: dict | None = None, nonzero: bool = True,
                     field: str | None = None, group: str | None = None,
