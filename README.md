@@ -1219,7 +1219,7 @@ python rf4mod.py param info rf3ItemList.bin            # item id → sell price 
 python rf4mod.py param set rf3ItemList.bin 29 sell_price=9999 -o new.bin   # Turnip → 9999G
 python rf4mod.py param info rf3ItemEquipmentParam.bin  # weapon/armor ATK/MAT/DEF/MDF/STR/INT/VIT (+ boots word, accessory bit)
 python rf4mod.py param set rf3ItemEquipmentParam.bin 328 atk=999 -o w.bin  # Broadsword ATK→999
-python rf4mod.py param set rf3ParamMagic.bin 0 dmg_mult=150 -o m.bin    # a percentage field takes a percentage (150 or 150%)
+python rf4mod.py param set rf3ParamMagic.bin 0 "Damage multiplier=150" -o m.bin    # a percentage field takes a percentage (150 or 150%)
 python rf4mod.py param info rf3CropParam.bin           # crop stage-days + harvest/seed item
 python rf4mod.py param info rf3RecipeWeaponA.bin       # result + ingredients
 python rf4mod.py param dump rf3UseItemParam.bin -o use.csv             # consumable HP/RP effects

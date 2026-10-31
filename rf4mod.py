@@ -3643,9 +3643,9 @@ def cmd_param_set(a):
 
 def _param_assign(t, rec, assign, stem):
     """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar). A
-    field shown as a percentage (nlcl.FIXED_FIELDS) takes one: dmg_mult=150 or 150% (0x.. =
+    field shown as a percentage (nlcl.FIXED_FIELDS) takes one: "Damage multiplier=150" or 150% (0x.. =
     the stored value); a bit-set
-    field (nlcl.FLAG_FIELDS) takes +name / -name edits: flags=+IgnoreDEF,-Fire,+0x400."""
+    field (nlcl.FLAG_FIELDS) takes +name / -name edits: Flags=+IgnoreDEF,-Fire,+0x400."""
     key, val = assign.split("=", 1)
     if ":" in key:
         off_s, typ = key.split(":", 1)

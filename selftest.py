@@ -1090,16 +1090,16 @@ def test_fixed_point_fields():
     import importlib, tempfile
     rf4 = importlib.import_module("rf4mod")
     t = nlcl.NlclTable(src.read_bytes())
-    rf4._param_assign(t, 0, "dmg_mult=125%", "rf3ParamMagic")
-    rf4._param_assign(t, 0, "mat_scalar=200", "rf3ParamMagic")
-    rf4._param_assign(t, 0, "atk_scalar=0x1800", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "Damage multiplier=125%", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "MAT scaling=200", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "ATK scaling=0x1800", "rf3ParamMagic")
     row = t.row(0, "rf3ParamMagic")
     _check("param set: in a percentage field 125% and a plain 200 are percentages (5120, 8192); "
            "hex is the stored value (0x1800)",
-           (row["dmg_mult"], row["mat_scalar"], row["atk_scalar"]) == (5120, 8192, 0x1800)
+           (row["Damage multiplier"], row["MAT scaling"], row["ATK scaling"]) == (5120, 8192, 0x1800)
            and nlcl.parse_value("200", "s32", 12) == 8192 and nlcl.parse_value("12", "u32", 8) == 31
            and nlcl.parse_value("20", "u32", nlcl.PERMILLE) == 200,
-           (row["dmg_mult"], row["mat_scalar"], row["atk_scalar"]))
+           (row["Damage multiplier"], row["MAT scaling"], row["ATK scaling"]))
 
 
 def test_flag_fields():
@@ -1110,7 +1110,7 @@ def test_flag_fields():
     missing = [(s, f) for s, fs in nlcl.FLAG_FIELDS.items() for f in fs
                if f not in {n for n, _o, _t in nlcl.FIELD_SCHEMAS.get(s, {}).get("fields", ())}]
     _check("every bit-set field is a real schema field of its table", not missing, missing)
-    names = nlcl.flag_bits("rf3ParamMagic", "flags")
+    names = nlcl.flag_bits("rf3ParamMagic", "Flags")
     errs = []
     try:
         nlcl.apply_flag_edit(0, "+Frie", names)
@@ -1129,10 +1129,10 @@ def test_flag_fields():
     import importlib
     rf4 = importlib.import_module("rf4mod")
     t = nlcl.NlclTable(src.read_bytes())
-    before = t.row(1, "rf3ParamMagic")["flags"]
-    rf4._param_assign(t, 1, "flags=+Ignore DEF,-Fire", "rf3ParamMagic")
-    after = t.row(1, "rf3ParamMagic")["flags"]
-    _check("param set flags=+Ignore DEF,-Fire changes only those bits (record 1, Fire magic 0x81)",
+    before = t.row(1, "rf3ParamMagic")["Flags"]
+    rf4._param_assign(t, 1, "Flags=+Ignore DEF,-Fire", "rf3ParamMagic")
+    after = t.row(1, "rf3ParamMagic")["Flags"]
+    _check("param set Flags=+Ignore DEF,-Fire changes only those bits (record 1, Fire magic 0x81)",
            before == 0x81 and after == 0x280, (hex(before), hex(after)))
     try:
         import tkinter as tk
@@ -1547,9 +1547,14 @@ def test_param():
     if mag:
         t = nlcl.NlclTable.load(mag)
         # archive 14817 action-param: action 0 = Fire magic (flags 0x81, MAT-scaling), 446 records
-        _check("rf3ParamMagic action schema (14817)",
-               t.entry_count == 446 and t.get(0, 28, "u32") == 0x81
-               and t.get(0, 40) == 4096 and t.get(0, 32) == 15)
+        r0 = t.row(0, "rf3ParamMagic")
+        _check("rf3ParamMagic action schema (14817): every byte of the 148 named; row 0 = Fire "
+               "magic (Flags 0x81, Base damage 15, MAT scaling 100%), half launch gravity, hit size",
+               t.entry_count == 446 and r0["Flags"] == 0x81 and r0["MAT scaling"] == 4096
+               and r0["Base damage"] == 15 and r0["Launch gravity"] == 2048 and r0["Hit size"] > 0
+               and sum({"u8": 1, "s8": 1, "u16": 2, "s16": 2}.get(ty, 4)
+                       for _n, _o, ty in t.schema("rf3ParamMagic")["fields"]) == 148
+               and nlcl.ref_kind("rf3ParamMagic", "Skill") == "skill")
     sdt = next((p for p in files if p.name == "rf3ParamSkillData.bin"), None)
     if sdt:
         t = nlcl.NlclTable.load(sdt)

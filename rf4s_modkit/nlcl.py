@@ -786,52 +786,71 @@ FIELD_SCHEMAS = {
         # Actor_ComputeDamageWithAtkScalarsAndElementBonus (RF4S.exe+0x96B40),
         # Combat_CopyAttackEntryAndScaleDamageToItemRecord (+0x97250), Actor_BeginSkillEffectAnim
         # (+0x161970):
-        #   dmg = base_dmg + (atk_scalar*ATK>>12) + (mat_scalar*MAT>>12), then *dmg_mult,
-        #   +effect-level bonus (efflvl_mult), then *element bonus. flags = element/behaviour.
+        #   dmg = Base damage + ATK scaling x ATK + MAT scaling x MAT, then x Damage multiplier,
+        #   + the level bonus, then the element bonus. Flags = element / behaviour bits.
         # (Corrects the old Combat_GetAttackParamTableBase note: +28 is FLAGS, base dmg is +32.)
         # Data-checked: action0 = Fire magic (flags 0x81, base15, mat 1.0x); action445 =
         # physical (atk 1.5x, mult 5x).
+        # LAYOUT 2026-10-31 (every byte; readers = the 7 functions that load archive 14817 or
+        # call Combat_GetAttackParamTableBase, plus MagicProjectile_SpawnTaskWithKindAngleAnd
+        # Velocity reading row 113 by constant; none of them hands a record pointer on):
+        #   +0..+27, +72..+95 are read by nothing (+92 holds 255 / 0 / 96 / 50 in the shipped
+        #   rows, a leftover), nor are the upper halves of the u16 status words.
+        #   +64 -> AttackInfo+316 = this * -1536 >> 12 for spell / effect hits only
+        #     (Combat_FillAttackInfoFromEffectKind); weapon and thrown hits always use -1536
+        #     (Combat_CopyAttackEntryAndScaleDamageToItemRecord) -- the gravity that pulls a
+        #     launched target back down (shipped 50% almost everywhere).
+        #   +68 -> AttackInfo+182 hit_reach = this * 30 >> 12 (Combat_FillAttackInfoFromEffectKind,
+        #     MagicProjectile_Spawn... for row 113): the radius of the spell's hit circle
+        #     (Collision_CircleVsCircleWithArcsRefined); several spell ticks grow it as they fly.
+        #   +52 -> AttackInfo+308 = this * 24576 >> 12 (Combat_ResolveHit scales it by the
+        #     target's 4096 - knockback resist); +56 -> AttackInfo+332 = this * 30 >> 12 frames
+        #     (scaled by the target's stats +68 into actor +576); +60 -> AttackInfo+312 =
+        #     this * -10240 >> 12, the upward speed; the u16 status words -> AttackInfo +334 and
+        #     +340..+354 (both copy functions read only the low half).
+        #   +132 / +136 / +140: Effect_ApplyByKindAndSpawn (+0xECEC0) charges the cost and gives
+        #     the XP on cast; Combat_ResolveHit gives the XP on a hit only when both costs are 0.
+        #   +144 Skill: Combat_ResolveHit reads it as u16, Effect_ApplyByKindAndSpawn as u32 (an
+        #     index into rf3ParamSkill), so the whole dword must stay a skill id 0..39.
+        #   Base damage / Level bonus (Actor_ComputeDamageWithAtkScalarsAndElementBonus): at
+        #     effect level L = 1..9 (g_currentEffectLevel, capped at 9) the base part is
+        #     L * Base damage / 2 + Level bonus * g_effectLevelDamageTable[L] >> 12; at L = 0 it
+        #     is Base damage. A caster without stats (a trap, an object) does Base damage + 32.
         "fields": [
-            ("flags", 28, "u32"),        # element + behaviour bits: use Flags... (every bit the
-                                         # exe reads is named; FLAG_FIELDS lists the readers)
-            ("base_dmg", 32, "s32"),
-            ("atk_scalar", 36, "s32"),   # Q12, x attacker ATK_total
-            ("mat_scalar", 40, "s32"),   # Q12, x attacker MAT_total
-            ("dmg_mult", 44, "s32"),     # Q12 overall damage multiplier (4096 = 1.0x)
-            ("efflvl_mult", 48, "s32"),  # Q12 effect-level (charge/spell-tier) scaling
-            ("knockback", 52, "s32"),    # Q12 horizontal knockback: AttackInfo+308 = this * 24576 >> 12
-                                         # (Combat_ApplyKnockbackDirectionalForce, Combat_ResolveHit
-                                         # scales it by the target's 4096 - knockback resist);
-                                         # 4096 = 100% = a plain weapon hit's 24576
-            ("stagger", 56, "s32"),      # Q12 hit-stun multiplier: the attack's stun word =
-                                         # stagger*30>>12 (+0x97250 -> AttackInfo+332);
-                                         # Combat_ResolveHit (+0xA3D..) scales it by the
-                                         # target's own Q12 factor (stats +68) into the
-                                         # target's stun timer (actor +576). 4096 = 1x = 30
-                                         # frames, the same as a plain weapon hit
-                                         # (Attack_PopulateAttackInfoFromWeaponAndStatus
-                                         # writes 30); 0 = the target does not flinch
-            ("launch", 60, "s32"),       # upward launch: AttackInfo+312 = this * -10240 >> 12, the
-                                         # target's vertical velocity (Combat_ResolveHit, gravity
-                                         # +316 = -1536); 0 = stays on the ground
-            # the STATUS block, copied as u16 (the low half of each dword) into the attack
-            # (Combat_CopyAttackEntryAndScaleDamageToItemRecord +0x97250 and
-            # Combat_FillAttackInfoFromEffectKind +0xED2D0 -> AttackInfo +334 / +340..+354)
-            ("Knockout build-up", 96, "u16"),  # -> AttackInfo+334: knockout build-up per hit (shipped 0..25), see rf3ItemEquipmentParam
-            ("Psn Atk%", 100, "u16"), ("Seal Atk%", 104, "u16"), ("Par Atk%", 108, "u16"),
-            ("Slp Atk%", 112, "u16"), ("Ftg Atk%", 116, "u16"), ("Sick Atk%", 120, "u16"),
-            ("Faint Atk%", 124, "u16"),  # Q12 status proc chances poison..faint (409 = 10%)
-            ("Drain Atk%", 128, "u16"),  # Q12 HP drain (2048 = 50%)
-            # the player's cost and reward (Effect_ApplyByKindAndSpawn +0xECEC0, Combat_ResolveHit)
-            ("Skill Exp", 132, "u32"),   # XP given to skill `Skill Type`: Player_gainEXP(actor,
-                                         # +132, +144) -- on cast, and on a hit only when both
-                                         # costs are 0 (a free attack)
-            ("RP Cost", 136, "u32"),     # flat RP cost (action 87 doubles it below skill level 50
-                                         # with the wrong weapon category)
-            ("RP% Cost", 140, "s32"),    # Q12 share of the caster's MAX RP; non-zero replaces RP Cost
-            ("Skill Type", 144, "u16"),  # skill id that receives the XP (and whose "RP cost cut per level" in
-                                         # rf3ParamSkill lowers the cost)
+            ("unused 0", 0, "u32"), ("unused 4", 4, "u32"), ("unused 8", 8, "u32"),
+            ("unused 12", 12, "u32"), ("unused 16", 16, "u32"), ("unused 20", 20, "u32"),
+            ("unused 24", 24, "u32"),
+            ("Flags", 28, "u32"),           # element + behaviour bits: use the tick boxes
+            ("Base damage", 32, "s32"),     # damage before ATK / MAT (a caster without stats, e.g. a trap, does this + 32)
+            ("ATK scaling", 36, "s32"),     # share of the attacker's ATK added (100% = all of it)
+            ("MAT scaling", 40, "s32"),     # share of the attacker's MAT added (100% = all of it)
+            ("Damage multiplier", 44, "s32"),  # the whole hit's damage (100% = unchanged)
+            ("Level bonus", 48, "s32"),     # cast at a higher level L (1-9): base damage becomes L x Base damage / 2 + this x the game's per-level bonus
+            ("Knockback", 52, "s32"),       # how far it pushes (100% = a plain weapon hit); lowered by the target's knockback resist
+            ("Stun", 56, "s32"),            # how long the target flinches (100% = 30 frames, a plain weapon hit; 0 = no flinch)
+            ("Launch", 60, "s32"),          # how high it throws the target up (0 = stays on the ground)
+            ("Launch gravity", 64, "s32"),  # spells only: how fast a launched target falls back (100% = normal gravity; weapon hits always 100%)
+            ("Hit size", 68, "s32"),        # spells only: radius of the hit circle (100% = 30, the scale of Body radius in rf3NpcParam)
+            ("unused 72", 72, "u32"), ("unused 76", 76, "u32"), ("unused 80", 80, "u32"),
+            ("unused 84", 84, "u32"), ("unused 88", 88, "u32"),
+            ("unused 92", 92, "u32"),       # holds 255 / 0 / 96 ... in the shipped rows, but nothing reads it
+            ("Knockout build-up", 96, "u16"),  # knockout build-up per hit (shipped 0..25), see rf3ItemEquipmentParam
+            ("unused 98", 98, "u16"),
+            ("Poison chance", 100, "u16"), ("unused 102", 102, "u16"),
+            ("Seal chance", 104, "u16"), ("unused 106", 106, "u16"),
+            ("Paralysis chance", 108, "u16"), ("unused 110", 110, "u16"),
+            ("Sleep chance", 112, "u16"), ("unused 114", 114, "u16"),
+            ("Fatigue chance", 116, "u16"), ("unused 118", 118, "u16"),
+            ("Cold chance", 120, "u16"), ("unused 122", 122, "u16"),
+            ("Faint chance", 124, "u16"), ("unused 126", 126, "u16"),
+            ("HP drain", 128, "u16"),       # share of the damage the attacker heals
+            ("unused 130", 130, "u16"),
+            ("Skill XP", 132, "u32"),       # XP for `Skill` when cast (and on a hit, only for a move that costs no RP)
+            ("RP cost", 136, "u32"),        # flat RP cost (action 87 doubles it below skill level 50 with the wrong weapon)
+            ("RP cost (share of max RP)", 140, "s32"),  # a share of the caster's max RP; non-zero replaces RP cost
+            ("Skill", 144, "u32"),          # the skill that gets the XP (and whose "RP cost cut per level" in rf3ParamSkill lowers the cost)
         ],
+        "limits": {"Skill": (0, 39, "indexes the 40-row rf3ParamSkill table")},
     },
     "rf3ParamSkillData": {
         # 176 x 32-byte per-ACTION table = archive 14819, row = action id (an attack, a spell, a
@@ -1179,10 +1198,12 @@ PERMILLE = "permille"
 # ANGLE marks a u16 angle (65536 = 360 degrees), shown and typed in degrees ("90°", 90, 90deg).
 ANGLE = "angle"
 FIXED_FIELDS = {
-    "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
-                                      "knockback", "stagger", "Psn Atk%", "Seal Atk%",
-                                      "Par Atk%", "Slp Atk%", "Ftg Atk%", "Sick Atk%",
-                                      "Faint Atk%", "Drain Atk%", "RP% Cost")},
+    "rf3ParamMagic": {f: 12 for f in ("ATK scaling", "MAT scaling", "Damage multiplier",
+                                      "Level bonus", "Knockback", "Stun", "Launch",
+                                      "Launch gravity", "Hit size", "Poison chance",
+                                      "Seal chance", "Paralysis chance", "Sleep chance",
+                                      "Fatigue chance", "Cold chance", "Faint chance",
+                                      "HP drain", "RP cost (share of max RP)")},
     "rf3NpcParam": {**{f"{e} resist": 12 for e in ("Fire", "Water", "Earth", "Wind", "Light",
                                                    "Dark", "Neutral", "Love", "Poison", "Seal",
                                                    "Paralysis", "Sleep", "Fatigue", "Cold",
@@ -1255,7 +1276,7 @@ MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplie
 #     sickness (cold), faint (the order of the proc / resist bits).
 _STATUS = ("poison", "seal", "paralysis", "sleep", "fatigue", "sickness", "faint")
 FLAG_FIELDS = {
-    "rf3ParamMagic": {"flags": {
+    "rf3ParamMagic": {"Flags": {
         0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
         0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
         0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun (not reduced by stun resist; staggers monsters that never flinch)",
@@ -1344,7 +1365,7 @@ REF_FIELDS = {
     "rf3TxtShopNpc_split2_1": {"char_id": "char"},
     "rf3TxtQuest_split3_1": {"client_id": "char"},
     "rf3ParamSkillData": {f: "skill" for f in ("Skill 1", "Skill 2", "Skill 3")},
-    "rf3ParamMagic": {"Skill Type": "skill"},
+    "rf3ParamMagic": {"Skill": "skill"},
     "rf3ScheduleID": {"room": "room"},
     "rf3NpcParam": {**{f"Drop {k}": "item" for k in (1, 2, 3, 4)}, "Produce": "item",
                     "Home map": "room", "Transforms into": "char"},
