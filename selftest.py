@@ -1265,7 +1265,7 @@ def test_bin_editors():
             d = (B / "rf3ScheduleID.bin").read_bytes()
             app._show("rf3ScheduleID.bin", d); doc = app._doc
             tvs = doc._param_tree
-            first = (tuple(tvs["columns"][:3]), tvs.set("30", "spot kind"), tvs.set("30", "room"))
+            first = (tuple(tvs["columns"][:3]), tvs.set("30", "spot kind"), tvs.set("30", "Room"))
             import tkinter.ttk as _ttk
             ents = []
 
@@ -1378,7 +1378,7 @@ def test_bin_editors():
     if "sid" in res:
         _check("rf3ScheduleID: 'spot kind' follows the id, 'room' shows the room's name (record 30 = kind 26, 1 of 10, "
                "Butler's Room); searching 'kind 26' lists exactly records 30..39",
-               res["sid"] == (("#", "spot kind", "room"), "26  (1 of 10)", "Butler's Room", True), res["sid"])
+               res["sid"] == (("#", "spot kind", "Room"), "26  (1 of 10)", "Butler's Room", True), res["sid"])
     if "sched" in res:
         _check("rf3Schedule editor: opens on Herbert's normal-day routine (19 stops), Add puts a stop in "
                "time order, Remove restores the file, Copy makes another day's routine, Revert, "
@@ -1557,10 +1557,10 @@ def test_param():
         # +12..+24 = fog-of-war reveal rect, +28/+32 = Q12 scale (see minimap.py)
         r0, plain = t.row(0, "rf3MapMiniPos"), t.row(161, "rf3MapMiniPos")   # blank row / Selphia Plain
         _check("rf3MapMiniPos minimap layout",
-               t.entry_count == 873 and t.record_size == 52 and r0["sheet"] == 73
-               and plain["sheet"] == 66 and (plain["origin_x"], plain["origin_y"]) == (94, 71)
-               and (plain["reveal_w"], plain["reveal_h"]) == (27, 27)
-               and (plain["scale_x"], plain["scale_y"]) == (217, 201) and plain["parent_sheet"] == 73)
+               t.entry_count == 873 and t.record_size == 52 and r0["Picture"] == 73
+               and plain["Picture"] == 66 and (plain["Origin X"], plain["Origin Y"]) == (94, 71)
+               and (plain["Fog width"], plain["Fog height"]) == (27, 27)
+               and (plain["Scale X"], plain["Scale Y"]) == (217, 201) and plain["Parent picture"] == 73)
     mag = next((p for p in files if p.name == "rf3ParamMagic.bin"), None)
     if mag:
         t = nlcl.NlclTable.load(mag)
@@ -6917,7 +6917,7 @@ def test_behaviour_edits():
     if sid:
         r = nlcl.NlclTable.load(sid).row(2, "rf3ScheduleID")
         _check("rf3ScheduleID schema: record 2 = room 65 @65,292 weight 1",
-               r["room"] == 65 and r["x"] == 65 and r["y"] == 292 and r["weight"] == 1)
+               r["Room"] == 65 and r["X"] == 65 and r["Y"] == 292 and r["Weight"] == 1)
 
 
 def test_asatk_edit():

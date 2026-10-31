@@ -854,13 +854,14 @@ FIELD_SCHEMAS = {
         # CORRECTION: +20/+24 were labelled "marker X/Y" -- they are the reveal WIDTH/HEIGHT
         # (the x/y are +12/+16), and +0 is the picture sheet, not a location icon.
         "fields": [
-            ("sheet", 0, "s32"),
-            ("origin_x", 4, "s32"), ("origin_y", 8, "s32"),
-            ("reveal_x", 12, "s32"), ("reveal_y", 16, "s32"),
-            ("reveal_w", 20, "s32"), ("reveal_h", 24, "s32"),
-            ("scale_x", 28, "s32"), ("scale_y", 32, "s32"),
-            ("icon_slot", 36, "s32"), ("parent_sheet", 40, "s32"),
-            ("icon_x", 44, "s32"), ("icon_y", 48, "s32"),
+            ("Picture", 0, "s32"),          # which minimap picture it uses (73 or over 87 = none)
+            ("Origin X", 4, "s32"), ("Origin Y", 8, "s32"),  # where the map's world origin sits on the picture (pixels)
+            ("Fog X", 12, "s32"), ("Fog Y", 16, "s32"),      # the part of the picture uncovered once you visit it
+            ("Fog width", 20, "s32"), ("Fog height", 24, "s32"),  # 0 = no fog (towns, interiors)
+            ("Scale X", 28, "s32"), ("Scale Y", 32, "s32"),  # picture pixels per world unit (4096 = 1)
+            ("Icon slot", 36, "s32"),       # interiors: which icon slot of the parent picture shows its NPCs
+            ("Parent picture", 40, "s32"),  # interiors: the picture their NPC icons go on (73 = none)
+            ("Icon X", 44, "s32"), ("Icon Y", 48, "s32"),    # interiors: where on the parent picture
         ],
     },
     "rf3ItemStrengthening": {
@@ -1254,10 +1255,17 @@ FIELD_SCHEMAS = {
         # 0x8 ignore crowding). The picker sums the weights of a kind in a u8, so a kind's
         # total weight must stay <= 255 (schedule.spot_weight_problems checks it; shipped
         # max 152).
-        "fields": [("room", 0, "u16"), ("x", 2, "s16"), ("y", 4, "s16"), ("facing", 6, "u8"),
-                   ("action", 7, "u8"), ("wander", 8, "u8"), ("weight", 9, "u8"),
-                   ("flags", 10, "u8"), ("busy", 11, "u8")],
-        "limits": {"room": (0, 871, "a room id of the 872-room enum")},
+        "fields": [
+            ("Room", 0, "u16"),
+            ("X", 2, "s16"), ("Y", 4, "s16"),  # position in the room (8 per tile)
+            ("Facing", 6, "u8"),            # direction it faces (256 = a full turn)
+            ("Action", 7, "u8"),            # what it does there (copied into the day plan)
+            ("Wander", 8, "u8"),            # how far it may stray from the spot (tiles)
+            ("Weight", 9, "u8"),            # chance among the spots of its kind (a kind's total must stay 255 or less)
+            ("Flags", 10, "u8"),            # run / replaceable / season 1 only / ignore crowding: use the tick boxes
+            ("Busy", 11, "u8"),             # the game's own marker while someone uses the spot (0 in the file)
+        ],
+        "limits": {"Room": (0, 871, "a room id of the 872-room enum")},
     },
 }
 
@@ -1471,7 +1479,7 @@ FLAG_FIELDS = {
         0x4: "Special fishing catch", 0x8: "Giant crop (drawn with its crop's giant model)",
         0x10: "Weapon level / quality bonuses", 0x20: "Armour level / quality bonuses",
         0x40: "Staff level / quality bonuses", 0x80: "Accessory level / quality bonuses"}},
-    "rf3ScheduleID": {"flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
+    "rf3ScheduleID": {"Flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
                                 0x8: "Ignore crowding"}},
     "rf3TxtShopNpc_split2_1": {"flag": {}},
     "rf4TxtQuestRequestDetailFormat_split2_1": {"flag": {}},
@@ -1493,7 +1501,7 @@ REF_FIELDS = {
     "rf3TxtQuest_split3_1": {"client_id": "char"},
     "rf3ParamSkillData": {f: "skill" for f in ("Skill 1", "Skill 2", "Skill 3")},
     "rf3ParamMagic": {"Skill": "skill"},
-    "rf3ScheduleID": {"room": "room"},
+    "rf3ScheduleID": {"Room": "room"},
     "rf3NpcParam": {**{f"Drop {k}": "item" for k in (1, 2, 3, 4)}, "Produce": "item",
                     "Home map": "room", "Transforms into": "char"},
 }
