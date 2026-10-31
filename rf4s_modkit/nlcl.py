@@ -393,7 +393,7 @@ FIELD_SCHEMAS = {
             ("unused 270", 270, "u16"),
             ("Model", 272, "s16"),              # its model, counted within the model set (-1 = none)
             ("Skeleton", 274, "s16"),           # its skeleton (-1 = the default one)
-            ("Transforms into", 276, "u16"),    # the form it turns into, for information only: the game never reads it (the AI scripts do the transforms)
+            ("Transforms into", 276, "u16"),    # the form it turns into (0 = none), for information only: the game never reads it (the AI scripts do the transforms)
             ("Extra model", 278, "u16"),        # a second character model it loads
             ("Attack set", 280, "u16"),         # which set of attack moves it uses
             ("Ridden attack 1", 282, "u8"),     # the attack it does when its rider presses the first attack button
@@ -1309,6 +1309,8 @@ VALUE_NAMES = {
         6: "thanks", 7: "come again", 8: "decline", 9: "no space", 10: "no money",
         11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
     "rf3TxtQuest_split3_1": {"client_id": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
+    # 388 of the 392 rows hold 0 (char 0 is the player): no other form
+    "rf3NpcParam": {"Transforms into": {0: "(none)"}},
 }
 # What a row index is: "item" / "room" / "skill" / "fish" (rows 0..31 = item 985+row, 32..37 =
 # the rare remap, see the Fishing_rate_fish_Spring notes) / "level" (row L = level L -> L+1).
