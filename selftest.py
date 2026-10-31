@@ -12078,8 +12078,9 @@ def test_viewer_tabs():
                    and orc[1] == "Orc" and "field monster" in orc[2] and str(orc[3]) == "13"
                    and txt.startswith("#48") and "drops:" in txt and big
                    and tv.item("1", "values")[cols.index("Transforms into")] == "(none)"
-                   and tv.item("1", "values")[cols.index("Gender")] == "Male"
-                   and tv.item("303", "values")[cols.index("Gender")] == "Female",
+                   and tv.item("1", "values")[cols.index("Motion set")] == "Lest's"
+                   and tv.item("303", "values")[cols.index("Motion set")] == "Frey's"
+                   and tv.item("12", "values")[cols.index("Motion set")] == "Lest's",
                    (cols[:7], orc[:4], txt[:40], big))
             app.cmd_close_tab(d)
         _check("viewer tabs raised no callback errors", not errs, str(errs[:1]))
