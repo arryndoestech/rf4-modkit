@@ -296,6 +296,11 @@ def _flag_dialog(parent, title, typ, value, names, on_ok):
 def _fixed_tip(text, typ, bits):
     """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
     one = nlcl.fixed_scale(bits)
+    if bits == nlcl.AMOUNT:
+        try:
+            return f"stored as {nlcl.parse_value(text, typ, bits)} (4096 = 1); type a number such as 0.5"
+        except Exception:
+            return "4096 = 1; type a number such as 0.5"
     kind = "whole percent" if bits == nlcl.PERCENT else f"Q{bits}"
     try:
         raw = nlcl.parse_value(text, typ, bits)
@@ -6398,7 +6403,10 @@ class App:
             if n in pick_f:
                 bits.append("Shown by name; the file stores the number.")
             fb = nlcl.fixed_bits(stem, n)
-            if fb is not None:
+            if fb == nlcl.AMOUNT:
+                bits.append("Shown as a number: the file stores it x 4096 (4096 = 1). Type a "
+                            "number such as 0.5.")
+            elif fb is not None:
                 one = nlcl.fixed_scale(fb)
                 bits.append(f"Shown as a percentage: the file stores the fraction × {one} ({one} = "
                             f"100%). Type a percentage (150%) or the stored whole number.")

@@ -1042,6 +1042,14 @@ def test_fixed_point_fields():
     bad = [(b, r) for b in (12, 7) for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
            if nlcl.parse_value(nlcl.format_value(r, b), "s32", b) != r]
     _check("every stored value round-trips through its percentage text (Q12 and Q7)", not bad, bad[:5])
+    A = nlcl.AMOUNT
+    bad = [r for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
+           if nlcl.parse_value(nlcl.format_value(r, A), "s32", A) != r]
+    _check("per-level amounts round-trip through their number text and read as the designers "
+           "typed them (409 = 0.1, 1228 = 0.3, 204 = 0.05, 8192 = 2)",
+           not bad and [nlcl.format_value(r, A) for r in (409, 1228, 204, 8192, 2048, -2048)]
+           == ["0.1", "0.3", "0.05", "2", "0.5", "-0.5"] and nlcl.parse_value("0.1", "s32", A) == 409,
+           bad[:5])
     shown = [nlcl.format_value(r, 12) for r in (4096, 6144, 4710, 3686, -2048, 0)]
     _check("percentages read as designed: 4096 = 100%, 6144 = 150%, 4710 = 115% (not 114.99%)",
            shown == ["100%", "150%", "115%", "90%", "-50%", "0%"]
@@ -1516,10 +1524,16 @@ def test_param():
         # archive 14818 growth coefs (Player_ApplyAllSkillGrowthBonusesFromArchive14818 +0xB0E00:
         # dw0 -> hp_max, dw1 -> rp_max, dw2/3/4 -> STR/INT/VIT; +36 = RP-cost discount, +28 =
         # magic element bonus). Weapon skill 0 = RP+STR growth, Farming[13] = big HP.
-        r0, r13 = t.row(0, "rf3ParamSkill"), t.row(13, "rf3ParamSkill")
-        _check("rf3ParamSkill growth schema (14818)",
-               r0["rp_growth"] == 1024 and r0["str_growth"] == 1024 and r0["hp_growth"] == 0
-               and r13["hp_growth"] == 8192 and r0["rp_discount"] == 20)
+        r0, r6, r13 = (t.row(k, "rf3ParamSkill") for k in (0, 6, 13))
+        F = lambda r, n: nlcl.format_value(r[n], nlcl.fixed_bits("rf3ParamSkill", n))
+        _check("rf3ParamSkill growth schema (14818), amounts shown per level",
+               r0["Max RP per level"] == 1024 and r0["STR per level"] == 1024
+               and r0["Max HP per level"] == 0 and r13["Max HP per level"] == 8192
+               and r0["RP cost cut per level"] == 20 and r0["Weapon ATK per level"] == 2048
+               and r6["Spell ATK per level"] == 2048 and r6["Element damage cut per level"] == 409
+               and (F(r13, "Max HP per level"), F(r0, "Weapon ATK per level"),
+                    F(r6, "Element damage cut per level"), F(r0, "RP cost cut per level"))
+               == ("2", "0.5", "0.1", "0.5%"))
         try:
             t.set_field(0, "atk_growth", 1, "rf3ParamSkill")
             _ren = False

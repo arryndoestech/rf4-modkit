@@ -695,7 +695,7 @@ FIELD_SCHEMAS = {
             ("RP Cost", 136, "u32"),     # flat RP cost (action 87 doubles it below skill level 50
                                          # with the wrong weapon category)
             ("RP% Cost", 140, "s32"),    # Q12 share of the caster's MAX RP; non-zero replaces RP Cost
-            ("Skill Type", 144, "u16"),  # skill id that receives the XP (and whose rp_discount in
+            ("Skill Type", 144, "u16"),  # skill id that receives the XP (and whose "RP cost cut per level" in
                                          # rf3ParamSkill lowers the cost)
         ],
     },
@@ -704,7 +704,7 @@ FIELD_SCHEMAS = {
         # verified vs Player_ChargeSkillCastCostByActionIdFromArchive14819 (RF4S.exe+0xB2170):
         # RP cost = max(base_cost, (rp_max_coef * 16 * RP_MAX) >> 12) (CORRECTED 2026-09-24:
         # the coefficient scales the caster's MAX RP, stats+12, not ATK), then * (4096 -
-        # min(gov skill level, 100) * rf3ParamSkill[gov_skill].rp_discount) >> 12, doubled if
+        # min(gov skill level, 100) * rf3ParamSkill[gov_skill] +36) >> 12, doubled if
         # cast with the wrong / unmastered weapon. The result is truncated to u16. (Decompiler
         # folds the 28-byte header into the field offset: record base = data + 28 + 32*id,
         # fields record-relative.) Data-checked: skill 35 = 4 rising-cost tiers (RP 4/10/25/30).
@@ -717,26 +717,42 @@ FIELD_SCHEMAS = {
                                         "caster's 40 skill slots")},
     },
     "rf3ParamSkill": {
-        # 40 x 40-byte per-SKILL stat-growth table = archive 14818 (row index = skill id
-        # 0..39). IDA-verified vs Player_ApplyAllSkillGrowthBonusesFromArchive14818 (+0xB0E00),
-        # CORRECTED 2026-09-24 (the old schema called the columns HP/ATK/DEF/MAT/MDF): for each
-        # skill at level L, with t50 = ceil(L/50) and t300 = ceil(L/300):
-        #   +0  hp_growth   hp_max  += ((coef * L) >> 12) * t50
-        #   +4  rp_growth   rp_max  += min((coef * L) >> 12, 100*coef/4096)   (clamp 0..65535)
-        #   +8  str_growth  str_base += ((coef * L) >> 12) * t300
-        #   +12 int_growth  int_base += ...        +16 vit_growth  vit_base += ...
-        #   +28 elem_dmg    magic skills 6..12 only: per-level element damage bonus added for
-        #                   the matching element bit (Actor_ComputeDamageWithAtkScalarsAndElement
-        #                   Bonus +0x96B40 reads rf3ParamSkill[6+e] +28)
-        #   +36 rp_discount per-level Q12 discount on RP costs governed by this skill
-        #                   (Player_ChargeSkillCastCostByActionIdFromArchive14819 +0xB2170:
-        #                   cost * (4096 - min(L,100)*coef) >> 12)
-        # Farming[13] HP=8192 (life skills grant big HP). +20/+24/+32 have no reader found.
+        # 40 x 40-byte per-SKILL table = archive 14818, row = skill id 0..39. Every field is a
+        # Q12 amount per skill level (4096 = 1 point per level); the game adds (coef * L) >> 12
+        # for a skill at level L. RE-CHECKED 2026-10-31: the archive id appears in exactly eight
+        # functions besides the preload, and between them they read only these:
+        #   +0..+16 Player_ApplyAllSkillGrowthBonusesFromArchive14818 (+0xB0E00), every skill:
+        #     +0  max HP   += ((coef*L) >> 12) * ceil(L/50)   (so x2 past level 50)
+        #     +4  max RP   += min((coef*L) >> 12, (100*coef) >> 12)   (levels past 100 add nothing)
+        #     +8 / +12 / +16  base STR / INT / VIT += ((coef*L) >> 12) * ceil(L/300)
+        #     (the status-resist skills 26..32 also add a HARD-CODED 83968*L >> 12 = 0.5% per
+        #     level to their resist; that is not in this table)
+        #   +20 only two rows are read: row 0 (Short Sword) by Actor_ComputeBuffedAtkOrDef
+        #     (+0x969C7): the player's ATK and DEF += (row0.coef * L) >> 12 with L = the level of
+        #     the skill of the held weapon or tool (hoe / watering can / sickle -> Farming, hammer
+        #     -> Mining, axe -> Logging, pole -> Fishing); and row 35 (Throwing) by
+        #     Item_ApplyThrowVelocity (+0xEAC7D): a thrown item's attack += coef * Throwing L.
+        #     The other rows' +20 is never read.
+        #   +24 no reader at all.
+        #   +28 magic rows 6..12 (Fire..Love) only, Actor_ComputeDamageWithAtkScalarsAndElement
+        #     Bonus (+0x96D61): the player's attack with that element += coef * L.
+        #   +32 magic rows 6..12 only, Combat_ComputeDamage (+0x95DF2): damage taken from that
+        #     element -= coef * the target's L (after DEF, in damage points).
+        #   +36 RP cost cut: cost * (4096 - min(L,100) * coef) >> 12, for actions governed by
+        #     this skill (Player_ChargeSkillCastCostByActionIdFromArchive14819 +0xB21E7,
+        #     Combat_ApplyAttackEntry +0xB1FEC, Effect_ApplyByKindAndSpawn +0xED110).
+        # All reads are signed 32-bit.
         "fields": [
-            ("hp_growth", 0, "u32"), ("rp_growth", 4, "u32"), ("str_growth", 8, "u32"),
-            ("int_growth", 12, "u32"), ("vit_growth", 16, "u32"),
-            ("unk20", 20, "u32"), ("unk24", 24, "u32"), ("elem_dmg", 28, "s32"),
-            ("unk32", 32, "u32"), ("rp_discount", 36, "s32"),
+            ("Max HP per level", 0, "s32"),        # max HP gained per level of this skill (x2 past level 50)
+            ("Max RP per level", 4, "s32"),        # max RP gained per level of this skill (up to level 100)
+            ("STR per level", 8, "s32"),           # base STR gained per level of this skill
+            ("INT per level", 12, "s32"),          # base INT gained per level of this skill
+            ("VIT per level", 16, "s32"),          # base VIT gained per level of this skill
+            ("Weapon ATK per level", 20, "s32"),   # read on two rows only: Short Sword's value x the level of the held weapon or tool's own skill goes to ATK and DEF (for every weapon and tool); Throwing's goes to thrown items' attack; the other rows are ignored
+            ("unused 24", 24, "s32"),              # the game never reads this column
+            ("Spell ATK per level", 28, "s32"),    # magic skills only: attack added to spells of this element per level
+            ("Element damage cut per level", 32, "s32"),  # magic skills only: damage taken from this element goes down by this per level
+            ("RP cost cut per level", 36, "s32"),  # RP cost cut per level for actions of this skill (counted up to level 100)
         ],
     },
     "rf3TxtCalendar_split2_1": {
@@ -981,6 +997,9 @@ _CROP_SEASON_MASK = 0xFF000  # the 8 season bits (0x1000..0x80000)
 # shown and typed with the same '150%' / '1.5x' forms.
 # {table stem: {field: fraction bits or PERCENT}}
 PERCENT = "pct"
+# AMOUNT marks a Q12 field that is an amount, not a share (4096 = 1 point): shown and typed as a
+# plain decimal number (0.5, 2), converted the way the shipped data was (0.1 -> 409, truncated).
+AMOUNT = "amount"
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
                                       "knockback", "stagger", "Psn Atk%", "Seal Atk%",
@@ -997,8 +1016,11 @@ FIXED_FIELDS = {
                                            "buff_vit_pct", "fed_crit", "fed_knockback_res",
                                            "fed_crit_res")},
                         "level_scale": 15},                 # % per item level (4096 = 12.5%)
-    "rf3ParamSkill": {f: 12 for f in ("hp_growth", "rp_growth", "str_growth", "int_growth",
-                                      "vit_growth", "rp_discount")},
+    "rf3ParamSkill": {**{f: AMOUNT for f in ("Max HP per level", "Max RP per level",
+                                             "STR per level", "INT per level", "VIT per level",
+                                             "Weapon ATK per level", "Spell ATK per level",
+                                             "Element damage cut per level")},
+                      "RP cost cut per level": 12},
     "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
     "rf3ItemStrengthening": {"stun": 12},
     "rf3ItemEquipmentParam": {f: 12 for f in (
@@ -1332,7 +1354,28 @@ def fixed_bits(stem: str, name: str):
 
 def fixed_scale(bits) -> int:
     """The stored value that means 100%: 2**bits, or 100 for a PERCENT field."""
-    return 100 if bits == PERCENT else 1 << bits
+    return 100 if bits == PERCENT else 4096 if bits == AMOUNT else 1 << bits
+
+
+def _amount_raw(v: float) -> int:
+    """A typed AMOUNT -> the stored Q12 integer, truncated toward zero like the shipped data
+    (0.1 -> 409, 0.3 -> 1228); the epsilon keeps 0.25 * 4096 from landing on 1023.999."""
+    q = v * 4096
+    return int(q + 1e-6) if q >= 0 else -int(-q + 1e-6)
+
+
+def _format_amount(raw: int) -> str:
+    """The shortest decimal that converts back to `raw` (409 -> 0.1, 8192 -> 2)."""
+    a = abs(raw)
+    for nd in range(0, 13):
+        k = 10 ** nd
+        c = -(-a * k // 4096)                    # the smallest nd-digit decimal >= a/4096
+        if _amount_raw(c / k) == a:
+            s = f"{c / k:.{nd}f}"
+            break
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return ("-" + s) if raw < 0 else s
 
 
 def format_value(raw: int, bits=None) -> str:
@@ -1342,6 +1385,8 @@ def format_value(raw: int, bits=None) -> str:
     the designers typed, not 114.99%); two decimals always do for Q12, fewer for Q7."""
     if bits is None:
         return str(raw)
+    if bits == AMOUNT:
+        return _format_amount(raw)
     one = fixed_scale(bits)
     for nd in range(0, 7):
         s = f"{raw * 100 / one:.{nd}f}"
@@ -1357,6 +1402,15 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
     multiplier '1.5x' / '1.5×') is converted; anything else is a plain integer (0x.. allowed)
     stored as is. Checks the field's width and names the percentage range when it does not fit."""
     t = str(text).strip()
+    if bits == AMOUNT:
+        try:
+            raw = _amount_raw(float(t))
+        except ValueError:
+            raise NlclError(f"{t!r} is not a number") from None
+        lo, hi = type_range(typ)
+        if not lo <= raw <= hi:
+            raise NlclError(f"{t} does not fit a {typ} field: {lo / 4096:g} .. {hi / 4096:g}")
+        return raw
     if t.endswith("%") or t.endswith(MULT_SIGNS):
         if bits is None:
             raise NlclError(f"{t!r}: this field is not a percentage -- type a whole number")
