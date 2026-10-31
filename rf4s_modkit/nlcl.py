@@ -309,6 +309,14 @@ FIELD_SCHEMAS = {
         #     for Drop 1..4; e.g. Forte Zweihaender + Iron Shield, Dolce's Silk Hat, Doug's
         #     Charm). The chances +236..+248 reach the actor only for ids 48..140 and 144+
         #     (Actor_RecomputeAllStats), so they mean nothing for anyone else.
+        #   For monsters they ARE the drops (Actor_OnDefeatedCleanup +0xA8E00, one roll per slot
+        #     with ActorDrop_RollItemDropFromSlot +0x966C0): drop when chance > baseline * rnd,
+        #     baseline 1000, 920 on the Sharance Maze floors (maps 442..453), -250 on a lucky
+        #     day, -70 with luck food, -100 with a luck item (ability 0x80000), -40 / -20 per
+        #     companion with those. The item's quality comes from ItemDrop_RollKillItemQualityTier
+        #     (equipment always level 0). Not rolled: the chests 141..143 (loot from the exe), and
+        #     the story bosses 200 / 227-231 / 233 / 236 / 238 / 240 / 242 / 243 on their FIRST
+        #     defeat outside the Maze; Ragnarok (238) drops item 910 only in the Maze.
         #   +300 produce item, +304 nonzero = the produce gets bigger at levels 50 / 100,
         #     +305 daily produce chance (passes when it >= a random byte)
         #   +306 extra height for the companion-menu figurine
@@ -389,7 +397,7 @@ FIELD_SCHEMAS = {
             ("Drop 2", 230, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting SHIELD
             ("Drop 3", 232, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting HEADGEAR
             ("Drop 4", 234, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting ACCESSORY
-            ("Drop 1 chance", 236, "u32"),      # chance of Drop 1 (100% = always; a bit more likely in dungeons); monsters 48-140 and 144+ only, unused for anyone else
+            ("Drop 1 chance", 236, "u32"),      # chance of Drop 1 when the monster is defeated (100% = always; a bit more likely in the Sharance Maze and with luck items); monsters 48-140 and 144+ only, unused for anyone else
             ("Drop 2 chance", 240, "u32"),
             ("Drop 3 chance", 244, "u32"),
             ("Drop 4 chance", 248, "u32"),
