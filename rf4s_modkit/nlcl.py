@@ -253,7 +253,10 @@ FIELD_SCHEMAS = {
         #         rf3ItemStrengthening that a weapon / armour / staff / accessory gets.
         #   +24 read by nothing (a running index per kind, -1 for seeds, fish and spells).
         #   +28 Item_IsInRandomItemPool (+0x97410): > 9000 never; > 900 (> 960 in rune rolls)
-        #     only once discovered; else offered once story progress reaches it. Also read by
+        #     only once discovered; else offered once story progress reaches it.
+        #     "Discovered" = g_saveBuffer_itemDiscoveredBitset, set by taking the item into the
+        #     hands (Player_AttachHeldItem), buying it, crafting it, a reward popup, or showing a
+        #     spell; ShippingBin_ProcessOvernight never sets it (checked 2026-10-31). Also read by
         #     ItemDrop_RollKillItemQualityTier / ItemDrop_RollItemLevelFromTierAndSkill and the
         #     Shop_Roll* / Script_VMOp_RollRandom* pickers.
         #   +32 Inventory_SortPage: the low 32 bits are the sort key within the item's page.
@@ -273,7 +276,7 @@ FIELD_SCHEMAS = {
             ("Flags", 20, "u8"),         # what the game does with it: use the tick boxes
             ("unused 21", 21, "u8"), ("unused 22", 22, "u16"),
             ("unused 24", 24, "s32"),    # numbered per kind (-1 for seeds, fish, spells), but nothing reads it
-            ("Story unlock", 28, "u32"),  # shops, drops and rewards offer it only once the story reaches this (over 900: only after you found one, over 9000: never)
+            ("Story unlock", 28, "u32"),  # shops, drops and rewards offer it only once the story reaches this, or once you have had one (picked up, bought, crafted or got as a reward; shipping does not count); over 900 only that way, over 9000 never
             ("Sort order", 32, "u32"),   # its place when the bag is sorted
             ("Staff shot level", 36, "u16"),  # staffs: the level their charged shot is cast at (1-9); unused for anything else
             ("unused 38", 38, "u16"),
