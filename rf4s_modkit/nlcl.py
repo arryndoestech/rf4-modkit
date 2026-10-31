@@ -464,14 +464,16 @@ FIELD_SCHEMAS = {
         # +124 crit resist (stats+76), +128 knockback resist (stats+64), +132..+156 status resists
         # poison..faint, +160 HP-drain resist, +164 farm-tool charge scale, +168 hit reach scale,
         # +172 hit arc scale, +176 the held model's archive offset. All Q12 except +40 and +176.
-        # FIELD NAMES 2026-10-31: plain names, and +0 shown (the weapon's attack flags:
+        # FIELD NAMES 2026-10-31: plain names, and +0 shown ("Ability flags": every worn item's
+        # bits are ORed into the wearer's stats+188 (all slots) / +196 (armour slots) by
+        # Actor_RecomputeStats; a weapon's are also its attack flags:
         # Attack_PopulateAttackInfoFromWeaponAndStatus copies the item's +0 into AttackInfo+320,
         # the bits rf3ParamMagic's flags use; Equip_AccumulateItemStats tests +0 bit 0x20000000).
         # +4 Boots effects = Player_GetBootsEffectWord (+0x16D170), +8 Accessory effects =
         # Player_CheckStatusFlag (+0xB24C0): each bit is set by exactly one shipped item, named
         # after it below (the effect wording is that item's in-game description).
         "fields": [
-            ("Weapon flags", 0, "u32"),       # a weapon's attack flags (element, hammer hit, ...): tick boxes
+            ("Ability flags", 0, "u32"),      # special abilities: a weapon's go into its hits (element, hammer hit, ...), every worn item's count for the wearer (e.g. Dolphin Brooch): tick boxes
             ("Boots effects", 4, "u32"),      # the special effect of boots (walk on water, sneak, ...): tick boxes
             ("Accessory effects", 8, "u32"),  # the special effect of an accessory (Happy Ring, Talisman, ...): tick boxes
             ("ATK", 12, "s32"),               # attack added
@@ -1027,13 +1029,13 @@ FLAG_FIELDS = {
         **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
         **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},
         0x2000: "Level up"}},
-    # rf3ItemEquipmentParam (2026-10-31): Weapon flags = the rf3ParamMagic flags (the same word,
+    # rf3ItemEquipmentParam (2026-10-31): Ability flags = the rf3ParamMagic flags (the same word,
     # AttackInfo+320) plus the bits only equipment carries (Equip_AccumulateItemStats tests
     # 0x20000000; 0x80000 / 0x100000 / 0x8000000 from strengthening.FORGE_SPECIALS); the boots
     # and accessory bits are each set by one shipped item (named after it, its in-game description
     # as the effect; 0x400 / 0x20000 / 0x800000 / 0x2000000 / 0x2 / 0x4 / 0x8 also seen in code).
     "rf3ItemEquipmentParam": {
-        "Weapon flags": {**{m: n for m, n in ({
+        "Ability flags": {**{m: n for m, n in ({
             0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
             0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
             0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun (not reduced by stun resist; staggers monsters that never flinch)",
@@ -1042,7 +1044,14 @@ FLAG_FIELDS = {
             0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
             0x2000000: "Faint drop Potato", 0x4000000: "Faint drop Turnip",
             0x40000000: "No critical hits"}).items()},
-            0x80000: "Drop rate up", 0x100000: "Protects spouse / child",
+            # 0x100000 (Dolphin Brooch; the White Stone as a forging material): only when the
+            # wearer is the spouse or a child (char 22 / 23, Player_GetMarriagePartnerNpcId) --
+            # ATK / DEF x2 from any slot (Actor_ComputeBuffedAtkOrDef), and from an armour slot
+            # damage taken /2 (Combat_ComputeDamage) and a positive element bonus /2
+            # (Combat_GetElementBonus). Read from the worn items by Actor_RecomputeStats
+            # (equip_granted_flags_all / _armor).
+            0x80000: "Drop rate up",
+            0x100000: "Spouse / child wearer: ATK & DEF x2, half damage taken, half element weakness",
             0x8000000: "Search like the Magnifying Glass",
             0x20000000: "Lightweight (a shield still works with dual blades / fists, at half)"},
         "Boots effects": {
