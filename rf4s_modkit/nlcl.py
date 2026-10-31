@@ -806,11 +806,13 @@ FIELD_SCHEMAS = {
         #   +0  xp_to_next -- EXP to advance level->level+1 (VERIFIED; 4,10,22,.. -> ~1.5M)
         #   +4  hp  (25 -> 23144)   +8 rp (56 -> 900)   +12/+16/+20 str / int / vit
         "fields": [
-            ("xp_to_next", 0, "u32"), ("hp", 4, "u32"), ("rp", 8, "u32"),
-            ("str", 12, "u32"), ("int", 16, "u32"), ("vit", 20, "u32"),
+            ("XP to next level", 0, "u32"),  # XP needed at this level to reach the next one
+            ("Max HP", 4, "u32"),            # base max HP at this level
+            ("Max RP", 8, "u32"),            # base max RP at this level
+            ("STR", 12, "u32"), ("INT", 16, "u32"), ("VIT", 20, "u32"),  # base stats at this level
         ],
-        "limits": {"rp": (0, 0xFFFF, "the base RP is a u16 (Actor_ApplyLevelUp clamps the "
-                                     "running total to 65535)")},
+        "limits": {"Max RP": (0, 0xFFFF, "the base RP is a u16 (Actor_ApplyLevelUp clamps the "
+                                         "running total to 65535)")},
     },
     "rf3ParameterNPC_01": {"alias": "rf3ParameterNPC"},
     "rf3ParameterNPC_02": {"alias": "rf3ParameterNPC"},
@@ -1275,13 +1277,17 @@ PREFIX_SCHEMAS = {
     # UI once its `recipe_id` (the learned-recipe bit) is unique.
     "rf3Recipe": {
         "grow": "file-count",
-        "names": "item", "name_field": "result",
+        # 2026-10-31: +14 is the level the station shows (CookingMenu_OnModeChanged_
+        # RefreshSubpanel, Recipe_RefreshIngredientCheck); CraftSkill_CountMaxLearnableRecipesBy
+        # Kind / Skill_GetUnlockFloatFromArchive count a recipe as learnable only when it is
+        # <= 99 and its id is not 341.
+        "names": "item", "name_field": "Result",
         "fields": [
-            ("result", 0, "u16"),
-            ("ing1", 2, "u16"), ("ing2", 4, "u16"), ("ing3", 6, "u16"),
-            ("ing4", 8, "u16"), ("ing5", 10, "u16"), ("ing6", 12, "u16"),
-            ("level", 14, "u16"),
-            ("recipe_id", 16, "u32"),   # read as a dword (CraftData_IsRecipeLearned +0x47BC0)
+            ("Result", 0, "u16"),          # the item it makes
+            ("Ingredient 1", 2, "u16"), ("Ingredient 2", 4, "u16"), ("Ingredient 3", 6, "u16"),
+            ("Ingredient 4", 8, "u16"), ("Ingredient 5", 10, "u16"), ("Ingredient 6", 12, "u16"),
+            ("Skill level", 14, "u16"),    # the crafting skill level it needs (over 99: never learnable)
+            ("Recipe id", 16, "u32"),      # the learned-recipe bit, unique across all recipe files (read as a dword)
         ],
     },
 }
@@ -1479,7 +1485,7 @@ FLAG_FIELDS = {
 # Minerals: any item of that category is accepted), "char", "room", "skill". Matched by stem
 # (aliases followed), then by the PREFIX_SCHEMAS family prefix.
 REF_FIELDS = {
-    "rf3Recipe": {f: "item" for f in ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6")},
+    "rf3Recipe": {f: "item" for f in ("Result", *(f"Ingredient {k}" for k in range(1, 7)))},
     "MapOre_Rate": {f: "item" for f in ("Item 1", "Item 2", "Item 3", "Rare item")},
     "rf3ItemList": {"Family": "item"},
     "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)

@@ -1321,10 +1321,11 @@ def test_bin_editors():
             row = doc._param_tree.set("1")
             doc._param_select(1)
             pc = doc._param_cells
-            shown = (row["result"], row["ing1"], row["ing2"], pc.cols["ing1"]["get"]("1"), "name" in row)
-            pc.set(1, "ing2", "minerals")
+            shown = (row["Result"], row["Ingredient 1"], row["Ingredient 2"],
+                     pc.cols["Ingredient 1"]["get"]("1"), "name" in row)
+            pc.set(1, "Ingredient 2", "minerals")
             by_name = nlcl.NlclTable(doc.cur_data).get(1, 4, "u16")
-            pc.set(1, "ing2", "(none) (0)")
+            pc.set(1, "Ingredient 2", "(none) (0)")
             res["recipe"] = shown + (by_name, doc.cur_data == d)
         # strengthening: set a field of the selected row
         d = (B / "rf3ItemStrengthening.bin").read_bytes()
@@ -1527,12 +1528,12 @@ def test_param():
         # Actor_ApplyLevelUp: +4 -> base HP, +8 -> base RP (u16), +12/16/20 -> STR/INT/VIT
         r199 = t.row(199, "rf3Parameter")
         try:
-            t.set_field(0, "rp", 70000, "rf3Parameter")
+            t.set_field(0, "Max RP", 70000, "rf3Parameter")
             _lim = False
-        except nlcl.NlclError:
-            _lim = True
+        except nlcl.NlclError as e:
+            _lim = "65535" in str(e)
         _check("rf3Parameter hp/rp/str columns + u16 RP limit",
-               (r199["hp"], r199["rp"], r199["str"]) == (23144, 900, 734) and _lim)
+               (r199["Max HP"], r199["Max RP"], r199["STR"]) == (23144, 900, 734) and _lim)
     pnpc = next((p for p in files if p.name == "rf3ParameterNPC_01.bin"), None)
     if pnpc:
         t = nlcl.NlclTable.load(pnpc)
