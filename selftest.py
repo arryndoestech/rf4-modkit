@@ -12065,6 +12065,16 @@ def test_viewer_tabs():
             herbert = d._param_sheet.get("1.0", "1.end")
             d._param_select(48)
             root.update_idletasks()
+            d._param_select(4)
+            root.update_idletasks()
+            forte = d._param_sheet.get("1.0", "end")
+            d._param_select(48)
+            root.update_idletasks()
+            _check("a villager's sheet lists its four item slots as starting equipment "
+                   "(Forte: weapon Zweihaender, shield Iron Shield), a monster's as drops",
+                   "starting equipment: weapon Zweihaender (363)" in forte
+                   and "shield Iron Shield (590)" in forte and "drops:" not in forte
+                   and "drops:" in d._param_sheet.get("1.0", "end"), forte[-160:])
             _check("the sheet names a villager the way the game does (row 1: not ???) and a "
                    "monster with a tame chance as tameable",
                    "???" not in herbert and herbert.split()[1] == tv.item("1", "values")[1]

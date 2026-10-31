@@ -303,6 +303,12 @@ FIELD_SCHEMAS = {
         #   +296..+299 when a companion defeats this monster it gains these bonus bytes
         #     (HP / STR / INT / VIT, each capped at 255, the four together at 512); the HP byte
         #     adds up to +50% max HP
+        #   +228..+234 for villagers 0..26 the starting EQUIPMENT, not drops:
+        #     Game_NewGame_InitWorldData (+0x88AA0) packs them into each villager's saved
+        #     equipment (save +33815 + 63*id: slot 0 weapon, 1 shield, 4 headgear, 2 accessory
+        #     for Drop 1..4; e.g. Forte Zweihaender + Iron Shield, Dolce's Silk Hat, Doug's
+        #     Charm). The chances +236..+248 reach the actor only for ids 48..140 and 144+
+        #     (Actor_RecomputeAllStats), so they mean nothing for anyone else.
         #   +300 produce item, +304 nonzero = the produce gets bigger at levels 50 / 100,
         #     +305 daily produce chance (passes when it >= a random byte)
         #   +306 extra height for the companion-menu figurine
@@ -379,11 +385,11 @@ FIELD_SCHEMAS = {
             ("Tame chance", 220, "u16"),        # 0 = cannot be tamed; otherwise each fed item starts its roll at twice this out of 128 (bosses only need it nonzero: their favourite food decides)
             ("unused 222", 222, "u16"),
             ("Movement class", 224, "u32"),     # 0-3: which movement settings it uses
-            ("Drop 1", 228, "u16"),             # an item it can drop when defeated
-            ("Drop 2", 230, "u16"),
-            ("Drop 3", 232, "u16"),
-            ("Drop 4", 234, "u16"),
-            ("Drop 1 chance", 236, "u32"),      # chance of Drop 1 (100% = always; a bit more likely in dungeons)
+            ("Drop 1", 228, "u16"),             # monsters: an item it can drop when defeated; villagers 0-26: their starting WEAPON (put in their equipment when a new game starts)
+            ("Drop 2", 230, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting SHIELD
+            ("Drop 3", 232, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting HEADGEAR
+            ("Drop 4", 234, "u16"),             # monsters: an item it can drop; villagers 0-26: their starting ACCESSORY
+            ("Drop 1 chance", 236, "u32"),      # chance of Drop 1 (100% = always; a bit more likely in dungeons); monsters 48-140 and 144+ only, unused for anyone else
             ("Drop 2 chance", 240, "u32"),
             ("Drop 3 chance", 244, "u32"),
             ("Drop 4 chance", 248, "u32"),

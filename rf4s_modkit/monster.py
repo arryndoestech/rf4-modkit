@@ -44,6 +44,11 @@ def resist_field(key: str) -> str:
 # Q12 fixed-point unit used by element/resist fields (4096 = 100%)
 Q12 = 4096
 
+# villagers 0..26 get Drop 1..4 as their starting equipment at a new game
+# (Game_NewGame_InitWorldData RF4S.exe+0x88AA0: equipment slots 0 / 1 / 4 / 2)
+VILLAGER_EQUIP_IDS = 27
+EQUIP_SLOTS = ("weapon", "shield", "headgear", "accessory")
+
 # char_id -> engine treatment (Actor_SpawnAtPos +0x15A4E0 / Actor_SpawnByCharId +0x15B510)
 _RANGES = [
     (0, 47, "villager / person"),
@@ -185,7 +190,12 @@ def render(table: nlcl.NlclTable, char_id: int,
                f" + half of VIT {m['vit']}")
     out.append(f"  Tame chance {m['tame_base']}   AI script {m['ai_script']} ({m['ai_file']})"
                f"   Model {m['model']}   Skeleton {m['anim']}")
-    if m["drops"]:
+    if char_id < VILLAGER_EQUIP_IDS:
+        # villagers: the four item slots are their starting equipment (Game_NewGame_InitWorldData)
+        gear = [f"{what} {d['item'] or 'item'} ({d['item_id']})" for d in m["drops"]
+                for what in [EQUIP_SLOTS[d["slot"]]] if d["item_id"]]
+        out.append("  starting equipment: " + ("  ·  ".join(gear) if gear else "(none)"))
+    elif m["drops"]:
         out.append("  drops: " + "  ·  ".join(
             f"{d['item'] or 'item'} ({d['item_id']}) {d['permille'] / 10:g}%" for d in m["drops"]))
     else:
