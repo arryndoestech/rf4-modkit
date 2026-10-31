@@ -143,6 +143,8 @@ FIELD_SCHEMAS = {
         # function dereferences the records, so `flag` has no gameplay effect. The twin's
         # strings ARE live, selected by category with the argument slots filled by the
         # hard-coded Quest_LoadDetailStrings (+0x1ED1F0) switch.
+        "unused": "The game loads it but never reads its rows; the request texts are picked by "
+                  "the quest's category alone.",
         "grow": "unused:the exe loads archive 16345 but never reads its records; the format "
                 "strings are picked by the quest category byte whose meaning is hard-coded "
                 "in Quest_LoadDetailStrings (+0x1ED1F0), so a 34th row/line is unreachable",
@@ -573,6 +575,12 @@ FIELD_SCHEMAS = {
         # EFFECT. Real NPC/monster growth = rf3Parameter (14813, base+24*level via Actor_ApplyLevelUp)
         # + the static in-EXE g_levelStatBracketTable. Fields kept for inspection only; names are
         # structural (col2/col3 shared across the 3 variants, col0/col1 differ). _01 rec0=[6,9,3,5].
+        # Re-checked 2026-10-31: the ids 14814..14816 appear only in those two functions, the
+        # pointer Actor_AdvanceLevelByDays gets back is never read, and every 14813 fetch is a
+        # literal id (no 14813 + n).
+        "unused": "The game loads it and never reads it. NPC and monster growth comes from "
+                  "rf3Parameter.bin and the level table inside RF4S.exe.",
+        "grow": "unused:the exe never reads these records",
         "fields": [
             ("col0", 0, "u32"), ("col1", 4, "u32"), ("col2", 8, "u32"), ("col3", 12, "u32"),
         ],
@@ -1162,6 +1170,12 @@ def canonical_stem(stem: str) -> str:
     if stem in FIELD_SCHEMAS:
         return stem
     return next((p for p in PREFIX_SCHEMAS if stem.startswith(p)), stem)
+
+
+def unused_reason(stem: str) -> str:
+    """Why the game ignores this table ("" when it is read): the schema's "unused" sentence,
+    set only where the exe was checked to load the table without ever reading its rows."""
+    return FIELD_SCHEMAS.get(canonical_stem(stem), {}).get("unused", "")
 
 
 def ref_kind(stem: str, name: str):

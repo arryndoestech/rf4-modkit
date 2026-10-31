@@ -1480,6 +1480,12 @@ def test_param():
         _check("rf3ParameterNPC alias -> 4-col schema (vestigial 14814)",
                sch is not None and "alias" not in sch and len(sch["fields"]) == 4
                and row["col0"] == 6 and row["col1"] == 9 and row["col2"] == 3 and row["col3"] == 5)
+        _check("tables the game never reads say so (rf3ParameterNPC_01..03, the quest format "
+               "companion); live tables do not",
+               all(nlcl.unused_reason(f"rf3ParameterNPC_0{k}") for k in (1, 2, 3))
+               and nlcl.unused_reason("rf4TxtQuestRequestDetailFormat_split2_1")
+               and not nlcl.unused_reason("rf3Parameter") and not nlcl.unused_reason("MapOre_Rate")
+               and t.grow_info("rf3ParameterNPC_01")[0].startswith("unused:"))
     mmp = next((p for p in files if p.name == "rf3MapMiniPos.bin"), None)
     if mmp:
         t = nlcl.NlclTable.load(mmp)
@@ -11936,6 +11942,25 @@ def test_viewer_tabs():
             box["yesnocancel"] = False
             for d in list(app._docs):
                 app.cmd_close_tab(d)
+        # a table the game never reads opens with a "Not used by the game" line; a live one not
+        def labels(w):
+            out = [w.cget("text")] if isinstance(w, ttk.Label) else []
+            for c in w.winfo_children():
+                out += labels(c)
+            return out
+        from tkinter import ttk
+        shown = {}
+        for fname in ("rf3ParameterNPC_02.bin", "rf3Parameter.bin"):
+            if fname in byname:
+                n, _g, loader = byname[fname]
+                d = app._open_in_tab(app._entry_key(n), n, loader())
+                root.update_idletasks()
+                shown[fname] = any(str(x).startswith("Not used by the game") for x in labels(d.frame))
+                app.cmd_close_tab(d)
+        if len(shown) == 2:
+            _check("a table the game never reads shows the 'Not used by the game' line; a live "
+                   "table does not", shown["rf3ParameterNPC_02.bin"] and not shown["rf3Parameter.bin"],
+                   str(shown))
         _check("viewer tabs raised no callback errors", not errs, str(errs[:1]))
     finally:
         gui.App._view_hex = _orig_hex

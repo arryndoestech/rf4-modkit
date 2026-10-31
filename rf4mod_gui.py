@@ -6352,6 +6352,10 @@ class App:
                             command=lambda: set_display()).pack(side="left", padx=8)
         if about or notes:
             ttk.Button(bar, text="About this table…", command=lambda: show_about()).pack(side="right", padx=4)
+        if nlcl.unused_reason(stem):
+            _hint_line(ttk.Label(doc.content, foreground="#b02020",
+                                 text="Not used by the game: editing this file has no effect. "
+                                      + nlcl.unused_reason(stem)))
 
         cols = (["#"] + (["name"] if name_col else []) + used_col + pre_cols + [f[0] for f in fields])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
