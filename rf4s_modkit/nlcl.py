@@ -1067,14 +1067,15 @@ FLAG_FIELDS = {
             0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
             0x2000000: "Faint drop Potato", 0x4000000: "Faint drop Turnip",
             0x40000000: "No critical hits"}).items()},
-            # 0x100000 (Dolphin Brooch; the White Stone as a forging material): only when the
-            # wearer is the spouse or a child (char 22 / 23, Player_GetMarriagePartnerNpcId) --
-            # ATK / DEF x2 from any slot (Actor_ComputeBuffedAtkOrDef), and from an armour slot
-            # damage taken /2 (Combat_ComputeDamage) and a positive element bonus /2
-            # (Combat_GetElementBonus). Read from the worn items by Actor_RecomputeStats
+            # 0x100000 (Dolphin Brooch; the White Stone as a forging material): when the wearer
+            # is the spouse or a child (char 22 / 23, Player_GetMarriagePartnerNpcId), ATK / DEF
+            # x2 from any slot (Actor_ComputeBuffedAtkOrDef) and damage taken /2 from an armour
+            # slot (Combat_ComputeDamage); for ANY wearer, the player included, a positive element
+            # bonus (a weakness) /2 from an armour slot (Combat_GetElementBonus has no spouse
+            # test). Read from the worn items by Actor_RecomputeStats / Player_ApplyEquippedItemStats
             # (equip_granted_flags_all / _armor).
             0x80000: "Drop rate up",
-            0x100000: "Spouse / child wearer: ATK & DEF x2, half damage taken, half element weakness",
+            0x100000: "Half element weakness: a spouse / child wearer also gets ATK & DEF x2 and half damage taken",
             0x8000000: "Search like the Magnifying Glass",
             0x20000000: "Lightweight (a shield still works with dual blades / fists, at half)"},
         "Boots effects": {
