@@ -451,13 +451,13 @@ def gather_kind_sprite(kind: int) -> str | None:
 # MapOre_Rate.bin — the ore/mineral CONFIG table indexed by a type-0 spawn's f10.
 # VERIFIED layout (TileObject_ApplyToolHit's reads at
 # RF4S.exe+0x18B100/+0x18B32A) — replaces the older guessed schema:
-#   +0  u32 kind          gatherable kind 26..37 (selects the rock SPRITE +
+#   +0  u8  rock kind     gatherable kind 26..37 (low 7 bits; selects the rock SPRITE +
 #                         the "Mineral" display char 459+kind)
-#   +4  u16 deplete_prob  }  ProbRoll_ExtraDrop_FavorsNoSkill bases
-#   +8  u16 scrap_prob    }
-#   +12/16/20 u16 weight[3]   drop weights for item[0..2]
-#   +24/26/28 u16 item[3]     ore item ids (Iron 819, Bronze, ..., gems)
-#   +30 u16 rare_item         rare bonus (Small/Big Crystal, Light Ore, ...)
+#   +4  s16 break chance  }  ProbRoll_ExtraDrop_FavorsNoSkill bases, out of 256
+#   +8  s16 scrap chance  }  (Scrap Metal 818 instead of the ore)
+#   +12/16/20 u16 item weights   drop weights for items 1..3
+#   +24/26/28 u16 items 1..3     ore item ids (Iron 819, Bronze, ..., gems)
+#   +30 u16 rare item            rare replacement drop (Small/Big Crystal, Light Ore, ...)
 MAPORE_RATE_RECORD = "see mobj_params source — verified layout above"
 
 

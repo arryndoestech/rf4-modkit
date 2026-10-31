@@ -768,7 +768,7 @@ def char_name(cid):
 
 # ---- MapOre_Rate (type-0 ore spawn configs) ------------------------------ #
 def ore_configs(reader):
-    """MapOre_Rate rows [(kind, deplete, scrap, [(item, weight) x3], rare)], [] if absent."""
+    """MapOre_Rate rows [(kind, break, scrap, [(item, weight) x3], rare)], [] if absent."""
     out = []
     try:
         d = reader("MapOre_Rate.bin") if reader else None
@@ -776,9 +776,9 @@ def ore_configs(reader):
             cnt = struct.unpack_from("<I", d, 24)[0]
             for i in range(min(cnt, 64)):
                 q = 28 + 32 * i
-                kind = struct.unpack_from("<I", d, q)[0]
-                dep = struct.unpack_from("<H", d, q + 4)[0]
-                scr = struct.unpack_from("<H", d, q + 8)[0]
+                kind = d[q] & 0x7F                     # the game reads the low 7 bits
+                dep = struct.unpack_from("<h", d, q + 4)[0]
+                scr = struct.unpack_from("<h", d, q + 8)[0]
                 iw = [(struct.unpack_from("<H", d, q + 24 + 2 * j)[0],
                        struct.unpack_from("<H", d, q + 12 + 4 * j)[0]) for j in range(3)]
                 rare = struct.unpack_from("<H", d, q + 30)[0]

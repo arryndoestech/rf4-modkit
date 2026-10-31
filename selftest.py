@@ -1562,16 +1562,20 @@ def test_param():
                (uo["buff_str"], uo["buff_int"], uo["buff_vit"], uo["buff_vit_pct"]) == (32, 36, 40, 60)
                and uo["fed_res_poison"] == 76 and uo["fed_proc_faint"] == 128
                and uo["el_love"] == 156 and uo["perm_vit"] == 172 and "buff_atk" not in uo)
-    # MapOre_Rate: 25x32 dungeon rock/ore drop tables — area_id + 4 weighted ores.
+    # MapOre_Rate: 25x32 rock configs — kind, break / scrap chance, 3 weighted items + rare.
     mo = next((p for p in EXTRACTED.rglob("MapOre_Rate.bin")), None)
     if mo:
         t = nlcl.NlclTable.load(mo)
-        ok = (t.get(0, 0, "u32") == 26          # area id
-              and t.get(0, 24, "u16") == 819    # ore0 = Iron
-              and t.get(0, 8, "u32") == 100     # Iron weight 100
-              and t.get(0, 28, "u16") == 930    # ore2 = Invisible Stone (rare)
-              and t.get(0, 16, "u32") == 1)     # rare weight 1
-        _check("MapOre_Rate area/ore/weight", ok, "area26 Iron w100, InvisibleStone w1")
+        sch = {n: (o, ty) for n, o, ty in nlcl.FIELD_SCHEMAS["MapOre_Rate"]["fields"]}
+        ok = (t.get(0, *sch["Rock kind"]) == 26
+              and t.get(0, *sch["Break chance"]) == 128          # 50%
+              and t.get(0, *sch["Scrap chance"]) == 100
+              and t.get(0, *sch["Item 1 weight"]) == 100
+              and t.get(0, *sch["Item 1"]) == 819                # Iron
+              and t.get(0, *sch["Item 3"]) == 930
+              and nlcl.fixed_bits("MapOre_Rate", "Break chance") == 8
+              and nlcl.REF_FIELDS["MapOre_Rate"]["Rare item"] == "item")
+        _check("MapOre_Rate kind / chances / weighted items", ok, "row 0: 26, 128, 100, Iron w100")
     # Text-metadata companions of the TEXT split files (decoded 2026-08-31; see the
     # FIELD_SCHEMAS comments): calendar events, shop dialogue meta, name-entry keys.
     cal = next((p for p in files if p.name == "rf3TxtCalendar_split2_1.bin"), None)

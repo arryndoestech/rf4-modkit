@@ -79,11 +79,32 @@ FIELD_SCHEMAS = {
         # (26..37 -> the rock sprite + "Mineral" char 459+kind), NOT an
         # "area id"; +4/+8 are the deplete/scrap probability bases, and the
         # weights sit at +12/16/20 pairing items +24/26/28 with rare at +30.
+        # RE-CHECKED 2026-10-31 (TileObject_ApplyToolHit and its rolls):
+        #   +0  only the low byte & 0x7F is read (Map_HandleSpecialTriggerEntity), so u8.
+        #   +4 / +8 are read as s16 bases of ProbRoll_ExtraDrop_FavorsNoSkill(base, Mining level
+        #     (skills+120), hammer tier (Item_GetWithinCategoryIndex_Cats27to32)): threshold =
+        #     base with the first hammer, else base/2 - min(level,100)/2 - 16*tier (at least 1
+        #     when base != 0); the roll passes when threshold >= a random byte 0..255, so the
+        #     base is a chance out of 256. +4 passing zeroes the rock's remaining hits (it
+        #     breaks); +8 passing turns the drop into Scrap Metal (818).
+        #   +12/16/20 weights of Rng_WeightedPickIndex over the 3 items; on a special rock (set
+        #     daily) the smallest weight is x4, capped at 255.
+        #   +30 replaces the drop when ProbRoll_RareDrop_HighSkillAndLevel passes: Mining >= 50
+        #     and hammer tier >= 3; chance/1024 = 30 (5 at tier 3), +10 at Mining 75, +20 at 90
+        #     (the +10 / +15 / +20 steps at 150 / 300 / 500 are past the skill cap).
+        # The bonus drop (4*(min(level,100) + 8*tier) >= a random 0..1023) repeats the same item.
+        # Shipped: the upper 16 bits of every dword are 0; rows 20-24 have no items.
         "fields": [
-            ("kind", 0, "u32"), ("deplete_prob", 4, "u16"), ("scrap_prob", 8, "u16"),
-            ("weight0", 12, "u16"), ("weight1", 16, "u16"), ("weight2", 20, "u16"),
-            ("item0", 24, "u16"), ("item1", 26, "u16"),
-            ("item2", 28, "u16"), ("rare_item", 30, "u16"),
+            ("Rock kind", 0, "u8"),           # the rock's gatherable kind (26..37): its sprite and name; only the low 7 bits count
+            ("Break chance", 4, "s16"),       # chance per hit that the rock breaks, with the first hammer (256 = 100%); any better hammer halves it, and Mining lowers it further
+            ("Scrap chance", 8, "s16"),       # chance per drop that it is Scrap Metal instead, with the first hammer (256 = 100%); any better hammer halves it, and Mining lowers it further
+            ("Item 1 weight", 12, "u16"),     # how often Item 1 drops, relative to the other two weights
+            ("Item 2 weight", 16, "u16"),     # how often Item 2 drops, relative to the other two weights
+            ("Item 3 weight", 20, "u16"),     # how often Item 3 drops, relative to the other two weights
+            ("Item 1", 24, "u16"),
+            ("Item 2", 26, "u16"),
+            ("Item 3", 28, "u16"),
+            ("Rare item", 30, "u16"),         # replaces the drop now and then once Mining is 50+: about 3% a drop with a 5th-tier hammer or better (0.5% with the 4th, none below), 4% at Mining 75, 6% at 90
         ],
     },
     "rf3TxtQuest_split3_1": {
@@ -981,6 +1002,8 @@ FIXED_FIELDS = {
     "rf3CropParam": {f: 7 for f in ("Growth speed", "Level gain", "Size gain", "Yield gain")},
     # Item_ComputeStackGoldValue (RF4S.exe+0x454A0): gold = price * value / 100
     "rf3PriceTable": {f"Lv {j}": PERCENT for j in range(1, 11)},
+    # chances out of 256 (TileObject_ApplyToolHit's ProbRoll_ExtraDrop_FavorsNoSkill)
+    "MapOre_Rate": {"Break chance": 8, "Scrap chance": 8},
 }
 MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier (1.5x = 150%)
 
@@ -1098,7 +1121,7 @@ FLAG_FIELDS = {
 # (aliases followed), then by the PREFIX_SCHEMAS family prefix.
 REF_FIELDS = {
     "rf3Recipe": {f: "item" for f in ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6")},
-    "MapOre_Rate": {f: "item" for f in ("item0", "item1", "item2", "rare_item")},
+    "MapOre_Rate": {f: "item" for f in ("Item 1", "Item 2", "Item 3", "Rare item")},
     "rf3ItemList": {"base_item": "item"},
     "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)
     "rf3TxtShopNpc_split2_1": {"char_id": "char"},
