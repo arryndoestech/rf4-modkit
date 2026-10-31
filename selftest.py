@@ -1042,6 +1042,14 @@ def test_fixed_point_fields():
     bad = [(b, r) for b in (12, 7) for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
            if nlcl.parse_value(nlcl.format_value(r, b), "s32", b) != r]
     _check("every stored value round-trips through its percentage text (Q12 and Q7)", not bad, bad[:5])
+    G = nlcl.ANGLE
+    bad = [r for r in range(0, 65536) if nlcl.parse_value(nlcl.format_value(r, G), "u16", G) != r]
+    _check("angles round-trip through their degree text (every u16) and read as designed "
+           "(16384 = 90°, 29127 = 160°; 90, 90° and 90deg all store 16384)",
+           not bad and nlcl.format_value(16384, G) == "90\u00b0"
+           and nlcl.format_value(29127, G) == "160\u00b0"
+           and {nlcl.parse_value(x, "u16", G) for x in ("90", "90\u00b0", "90deg")} == {16384},
+           bad[:5])
     A = nlcl.AMOUNT
     bad = [r for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
            if nlcl.parse_value(nlcl.format_value(r, A), "s32", A) != r]

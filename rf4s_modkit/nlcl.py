@@ -282,8 +282,9 @@ FIELD_SCHEMAS = {
         #     Not the villagers' gender: Lin Fa / Amber / Dolce have 1, Barrett / Raven 0.
         #   +36 -> stats+224: Companion_AcquireTarget (+0x1E8F30) starts a freshly spawned
         #     monster in its lying-down (asleep) sequence when a random byte is below it
-        #   +140 / +142 -> stats+52 / +80: the base hit arc (u16 angle, half width; 16384 = 90
-        #     degrees) and hit reach the attack timeline ops 13 / 12 scale
+        #   +140 / +142 -> stats+52 / +80: the base hit arc (u16 angle, the FULL cone width:
+        #     Collision_CircleVsCircleWithArcsRefined hits within +-arc/2 of the facing, 0 = a
+        #     full circle; 16384 = 90 degrees) and hit reach the attack timeline ops 13 / 12 scale
         #     (AnimEvent_Op13_ScaleHitArc +0xAC280, AnimEvent_Op12_ScaleHitReach +0xAC0F0)
         #   +144 -> stats+172 bit 0x1000; set on the flying / floating monsters, but the only
         #     reader of that bit found is the player's XP x1.5 in Player_gainEXP
@@ -291,7 +292,8 @@ FIELD_SCHEMAS = {
         #   +252 face icon: archive 17936 + this (monsters 48..253)
         #   +255 -> actor+220 |= 0x1C: floats over half-blocks and deep water while wild
         #   +256 model set: 48..253 = the monster model folder (12584 + model), else 933 + model
-        #   +260 sight range (0 = unlimited), +264 field of view (u16 angle, 65536 = 360)
+        #   +260 sight range (0 = unlimited), +264 field of view (u16 angle, full width:
+        #     Monster_PickClosestVisibleTargetFromParty notices within +-fov/2 of the facing)
         #   +278 extra model (933 + this), +280 attack set (timeline archive 243 + this + N)
         #   +282..+287 ridden attacks: Actor_TickHeldByCarrier starts
         #     Actor_BeginAttackOrSkill(monster, +282/+284/+286, +283/+285/+287) on the rider's
@@ -344,7 +346,7 @@ FIELD_SCHEMAS = {
             ("Stun taken", 128, "s32"),         # how long it stays stunned when hit (0% = no stun)
             ("Critical chance", 132, "s32"),
             ("Critical resist", 136, "s32"),
-            ("Hit arc", 140, "u16"),            # how wide its body attacks reach to each side (16384 = 90 degrees); each attack scales it
+            ("Hit arc", 140, "u16"),            # how wide the cone of its body attacks is, in total (90° = 45° to each side of its facing); each attack scales it, 0 = all around
             ("Hit reach", 142, "u16"),          # how far its body attacks reach; each attack scales it
             ("Floating type", 144, "u32"),      # 1 on flying and floating monsters; no effect on them found (the same flag gives the player 1.5x XP)
             ("unused 148", 148, "u32"),         # 1 on the hornets, chests and gates; the game never reads it
@@ -391,7 +393,7 @@ FIELD_SCHEMAS = {
             ("Model set", 256, "u32"),          # 48-253 = takes its model from the monster models, else from the character models
             ("Sight range", 260, "u16"),        # how far it notices you (0 = no limit)
             ("unused 262", 262, "u16"),
-            ("View angle", 264, "u16"),         # how wide it looks for you (65536 = all around)
+            ("View angle", 264, "u16"),         # how wide the cone it notices you in is, in total (160° = 80° to each side of its facing); with Sight range 0 it sees all around whatever this says
             ("unused 266", 266, "u16"),
             ("unused 268", 268, "u16"),         # has values, but the game never reads them
             ("unused 270", 270, "u16"),
@@ -1134,6 +1136,8 @@ PERCENT = "pct"
 AMOUNT = "amount"
 # PERMILLE marks a field stored per mille (1000 = 100%), shown and typed as a percentage.
 PERMILLE = "permille"
+# ANGLE marks a u16 angle (65536 = 360 degrees), shown and typed in degrees ("90°", 90, 90deg).
+ANGLE = "angle"
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
                                       "knockback", "stagger", "Psn Atk%", "Seal Atk%",
@@ -1149,7 +1153,8 @@ FIXED_FIELDS = {
                                        "Stun taken", "Critical chance", "HP drain")},
                     **{f"{s} growth": PERCENT for s in ("ATK", "MAT", "DEF", "MDF", "HP")},
                     **{f"Drop {k} chance": PERMILLE for k in (1, 2, 3, 4)},
-                    "Spawn asleep chance": 8, "Produce chance": 8},
+                    "Spawn asleep chance": 8, "Produce chance": 8,
+                    "Hit arc": ANGLE, "View angle": ANGLE},
     "rf3UseItemParam": {**{f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
                                            "buff_rp_pct", "buff_str_pct", "buff_int_pct",
                                            "buff_vit_pct", "fed_crit", "fed_knockback_res",
@@ -1502,7 +1507,7 @@ def fixed_bits(stem: str, name: str):
 def fixed_scale(bits) -> int:
     """The stored value that means 100%: 2**bits, or 100 for a PERCENT field."""
     return 100 if bits == PERCENT else 1000 if bits == PERMILLE else 4096 if bits == AMOUNT \
-        else 1 << bits
+        else 65536 if bits == ANGLE else 1 << bits
 
 
 def _amount_raw(v: float) -> int:
@@ -1535,6 +1540,14 @@ def format_value(raw: int, bits=None) -> str:
         return str(raw)
     if bits == AMOUNT:
         return _format_amount(raw)
+    if bits == ANGLE:                           # the shortest degrees that store back the same
+        for nd in range(0, 7):
+            s = f"{raw * 360 / 65536:.{nd}f}"
+            if round(float(s) * 65536 / 360) == raw:
+                break
+        if "." in s:
+            s = s.rstrip("0").rstrip(".")
+        return s + "\u00b0"
     one = fixed_scale(bits)
     for nd in range(0, 7):
         s = f"{raw * 100 / one:.{nd}f}"
@@ -1551,7 +1564,19 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
     is the stored value as is; in any other field it is a plain integer (0x.. allowed). Checks
     the field's width and names the percentage range when it does not fit."""
     t = typed = str(text).strip()
-    if bits not in (None, AMOUNT) and not t.endswith(("%",) + MULT_SIGNS) \
+    if bits == ANGLE and not t.lstrip("+-").lower().startswith("0x"):
+        num = t.rstrip("\u00b0").strip()
+        num = num[:-3].strip() if num.lower().endswith("deg") else num
+        try:
+            raw = round(float(num) * 65536 / 360)
+        except ValueError:
+            raise NlclError(f"{typed!r} is not a number of degrees") from None
+        lo, hi = type_range(typ)
+        if not lo <= raw <= hi:
+            raise NlclError(f"{typed} does not fit a {typ} field: {lo * 360 / 65536:g}\u00b0 .. "
+                            f"{hi * 360 / 65536:g}\u00b0")
+        return raw
+    if bits not in (None, AMOUNT, ANGLE) and not t.endswith(("%",) + MULT_SIGNS) \
             and not t.lstrip("+-").lower().startswith("0x"):
         t += "%"                                # a plain number in a percentage field
     if bits == AMOUNT:

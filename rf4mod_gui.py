@@ -296,6 +296,11 @@ def _flag_dialog(parent, title, typ, value, names, on_ok):
 def _fixed_tip(text, typ, bits):
     """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
     one = nlcl.fixed_scale(bits)
+    if bits == nlcl.ANGLE:
+        try:
+            return f"stored as {nlcl.parse_value(text, typ, bits)} (65536 = 360°); type degrees such as 90"
+        except Exception:
+            return "65536 = 360°; type degrees such as 90"
     if bits == nlcl.AMOUNT:
         try:
             return f"stored as {nlcl.parse_value(text, typ, bits)} (4096 = 1); type a number such as 0.5"
@@ -6416,6 +6421,9 @@ class App:
             if fb == nlcl.AMOUNT:
                 bits.append("Shown as a number: the file stores it x 4096 (4096 = 1). Type a "
                             "number such as 0.5.")
+            elif fb == nlcl.ANGLE:
+                bits.append("Shown in degrees: the file stores 65536 for a full turn. Type "
+                            "degrees such as 90.")
             elif fb is not None:
                 one = nlcl.fixed_scale(fb)
                 bits.append(f"Shown as a percentage: the file stores the fraction × {one} ({one} = "
