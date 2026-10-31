@@ -2228,8 +2228,6 @@ class App:
                 handler = self._view_skillcurve
             elif base == "rf3schedule.bin":
                 handler = self._view_schedule
-            elif base == "rf3npcparam.bin":
-                handler = self._view_monster
             elif base == "rf3cropparam.bin":
                 handler = self._view_crop
             elif base == "rf3itemstrengthening.bin":
@@ -6314,7 +6312,7 @@ class App:
         def row_name(i):
             if name_off_typ and name_field not in pick_f:
                 return names_of("item").get(t.get(i, *name_off_typ), "")
-            if rk in ("item", "room", "skill"):
+            if rk in ("item", "room", "skill", "char"):
                 return names_of(rk).get(i, "")
             if rk == "fish":
                 fi = nlcl.fish_item(i)
@@ -6333,13 +6331,22 @@ class App:
             used = magicnames.names_for_game()
         used_col = ["used by"] if stem == "rf3ParamMagic" else []
         pre_cols, pre_vals = [], None
-        if stem == "rf3ScheduleID":                 # the spot kind each spot belongs to
+        spots = stem == "rf3ScheduleID"
+        if spots:                                   # the spot kind each spot belongs to
 
             pre_cols = ["spot kind"]
 
             def pre_vals(i):
                 kr = schedule.kind_of_record(i)
                 return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else ""]
+        monsters = stem == "rf3NpcParam"
+        if monsters:                                # what the id means + the stats it ends up with
+            from rf4s_modkit import monster
+            pre_cols = ["kind", "ATK", "DEF", "MAT", "MDF"]
+
+            def pre_vals(i):
+                tot = monster.base_totals(t.row(i, stem))
+                return [monster.id_semantics(i), tot["atk"], tot["def"], tot["mat"], tot["mdf"]]
 
         # ---- top bar ----------------------------------------------------------------------
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
@@ -6349,7 +6356,7 @@ class App:
         ttk.Label(bar, text="Search:").pack(side="left")
         sv = tk.StringVar(); se = ttk.Entry(bar, textvariable=sv, width=18); se.pack(side="left", padx=2)
         Tip(se, "Matches the row number, the names and every shown value"
-                + ("; 'kind 26' lists one spot kind's spots" if pre_cols else "") + ".")
+                + ("; 'kind 26' lists one spot kind's spots" if spots else "") + ".")
         unused = [n for n, _o, _t in fields if n.startswith("unused") or n == "pad"]
         show_unused = tk.BooleanVar(value=False)
         if unused:
@@ -6365,7 +6372,7 @@ class App:
         cols = (["#"] + (["name"] if name_col else []) + used_col + pre_cols + [f[0] for f in fields])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
-        widths = {"name": 170, "used by": 300, "spot kind": 110}
+        widths = {"name": 170, "used by": 300, "spot kind": 110, "kind": 150}
         for c in cols:
             tv.heading(c, text=c)
             tv.column(c, width=widths.get(c, 130 if c in pick_f else 70), anchor="w")
@@ -6383,7 +6390,10 @@ class App:
         base_text = {"t": "Click a cell and type to change it (F2 or double-click edits what is there; "
                           "Enter keeps, Tab moves on, Esc cancels). Hover a column heading for what it "
                           "means."}
-        if pre_cols:
+        if monsters:
+            base_text["t"] += (" ATK / DEF / MAT / MDF = the bonus + STR / VIT/2 / INT / VIT/2, before "
+                               "level growth. The selected one's sheet is under the table.")
+        if spots:
             base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here; a "
                               "kind with several spots picks one of them each day by weight. Type "
                               "'kind 26' in the search box to list one kind's spots.")
@@ -6453,7 +6463,7 @@ class App:
         def fill(*_):
             tv.delete(*tv.get_children())
             q = sv.get().lower().strip()
-            kq = re.fullmatch(r"kind\s*(\d+)", q) if pre_cols else None
+            kq = re.fullmatch(r"kind\s*(\d+)", q) if spots else None
             shown = 0
             for i in range(t.entry_count):
                 vals = [i] + ([row_name(i)] if name_col else []) + ([used.get(i, "")] if used_col else []) \
@@ -6518,6 +6528,9 @@ class App:
             i = int(row)
             off, typ = foff[n]
             val = parse_field(n, typ, text)
+            lim = (sch or {}).get("limits", {}).get(n)
+            if lim and not lim[0] <= val <= lim[1]:
+                raise ValueError(f"{n} is {lim[0]}..{lim[1]}: {lim[2]}")
             before = t.build()
             try:
                 t.set(i, off, val, typ)
@@ -6545,6 +6558,8 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
+            if monsters:
+                show_sheet(i)
             if used_col:
                 from rf4s_modkit import magicnames
                 full = magicnames.full_text(i)
@@ -6666,6 +6681,19 @@ class App:
         # shrinks the table and never squeezes the buttons away
         ed.pack_configure(side="bottom", before=top)
         info.pack_configure(side="bottom", before=top)
+        if monsters:
+            # the selected character's decoded sheet (monster.render) under the table
+            sheet = tk.Text(doc.content, wrap="word", height=9, font=("Consolas", 9))
+            sheet.pack(side="bottom", fill="x", padx=6, pady=(2, 0), before=top)
+            sheet.insert("end", "Select a row to see its sheet.")
+            sheet.config(state="disabled")
+            species, item_names = monster.load_species(), _load_item_names()
+
+            def show_sheet(i):
+                sheet.config(state="normal"); sheet.delete("1.0", "end")
+                sheet.insert("end", monster.render(t, i, species, item_names))
+                sheet.config(state="disabled")
+            doc._param_sheet = sheet                                          # (selftest)
 
     def _view_crop(self, name, data):
         """rf3CropParam — crop editor with READABLE season affinity (GUI twin of the
@@ -6828,154 +6856,6 @@ class App:
         tv.bind("<Motion>", on_motion, add="+")
         tv.bind("<Leave>", lambda _e: hint.config(text=hint_text), add="+")
         doc._crop = dict(cells=cells, seasons=seasons, undo=undo, revert=revert, tree=tv)   # (selftest)
-
-    def _view_monster(self, name, data):
-        """rf3NpcParam — friendly monster/character template editor (archive 14812).
-
-        Resolved roster (name + kind) on the left; the selected monster's full decoded
-        sheet (drops with item names, element affinities as %, status resists) on the right,
-        with per-field entry boxes for every schema field (stats/drops/elements/resists/AI/
-        model). Edits go into the in-memory table; Save (Ctrl+S) writes it where the game loads it.
-        Editing is byte-surgical — only the touched record changes."""
-        doc = self._doc
-        from rf4s_modkit import monster
-        t = nlcl.NlclTable(data)
-        doc._param = t
-        stem = "rf3NpcParam"
-        sch = t.schema(stem)
-        species = monster.load_species()
-        items = _load_item_names()
-
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Monsters and characters — {t.entry_count} (ids below 48: people · "
-                            "48-199: monsters · 200-253: bosses)").pack(side="left", padx=6)
-        ttk.Label(bar, text="Search #/name:").pack(side="left")
-        sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
-
-        body = ttk.Frame(doc.content); body.pack(fill="both", expand=True)
-        left = ttk.Frame(body); left.pack(side="left", fill="both", expand=True)
-        cols = ("id", "name", "hp", "atk", "def", "kind")
-        widths = {"id": 50, "name": 150, "hp": 70, "atk": 55, "def": 55, "kind": 155}
-        tv = ttk.Treeview(left, columns=cols, show="headings", height=20)
-        for c in cols:
-            tv.heading(c, text=c); tv.column(c, width=widths[c], anchor="w")
-        _table_scrollbars(left, tv); TableSort(tv)
-
-        right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True)
-        sheet = tk.Text(right, wrap="word", width=52, height=12, font=("Consolas", 9))
-        sheet.pack(fill="both", expand=True, padx=4, pady=2); sheet.config(state="disabled")
-        pf = ttk.LabelFrame(right, text="Fields — click a value and type to change it")
-        pf.pack(fill="both", expand=True, padx=4, pady=2)
-        fields = sch["fields"]
-        ftyp = {fn: (off, typ) for fn, off, typ in fields}
-        about, notes = nlcl.schema_notes(stem)
-        drop_ids = {f"Drop {k}" for k in (1, 2, 3, 4)}           # 11-bit item ids
-        fv = ttk.Treeview(pf, columns=("field", "value"), show="headings", height=10, selectmode="browse")
-        fv.heading("field", text="field"); fv.column("field", width=150)
-        fv.heading("value", text="value"); fv.column("value", width=200)
-        _table_scrollbars(pf, fv)
-        sel = {"i": None}
-        history = []
-
-        def render_sheet(cid):
-            sheet.config(state="normal"); sheet.delete("1.0", "end")
-            sheet.insert("end", monster.render(t, cid, species, items))
-            sheet.config(state="disabled")
-
-        def val_text(i, fn):
-            off, typ = ftyp[fn]
-            v = t.get(i, off, typ)
-            if fn in drop_ids:
-                return _item_text(v & 0x7FF, items) if v else "(none) (0)"
-            return nlcl.format_value(v, nlcl.fixed_bits(stem, fn))
-
-        def fill_fields():
-            fv.delete(*fv.get_children())
-            i = sel["i"]
-            if i is None:
-                return
-            for fn, _o, _t in fields:
-                if not fn.startswith("unused"):         # bytes the game never reads
-                    fv.insert("", "end", iid=fn, values=(fn, val_text(i, fn)))
-
-        def fill(*_):
-            tv.delete(*tv.get_children())
-            q = sv.get().lower().strip()
-            shown = 0
-            for i in range(t.entry_count):
-                nm = monster.species_name(i, species) or "???"
-                if q and q not in str(i) and q not in nm.lower():
-                    continue
-                row = t.row(i, stem)
-                tot = monster.base_totals(row)   # ATK/DEF = flat + STR / VIT/2 (template)
-                tv.insert("", "end", iid=str(i),
-                          values=(i, nm, row["HP"], tot["atk"], tot["def"], monster.id_semantics(i)))
-                shown += 1
-                if shown >= _max_rows():
-                    break
-        sv.trace_add("write", fill); fill()
-
-        def on_sel(_e=None):
-            s = tv.selection()
-            if not s:
-                return
-            i = int(s[0]); sel["i"] = i
-            fill_fields()
-            render_sheet(i)
-        tv.bind("<<TreeviewSelect>>", on_sel)
-
-        def changed(i, msg, fn=None):
-            doc.cur_data = t.build()
-            fill()
-            if tv.exists(str(i)):
-                tv.selection_set(str(i)); tv.see(str(i))
-            sel["i"] = i
-            fill_fields(); render_sheet(i)
-            if fn and fv.exists(fn):
-                fv.selection_set(fn); fv.focus(fn); fv.see(fn)
-            self.status.config(text=msg + " — Save (Ctrl+S) writes the file")
-
-        def put(fn, text):
-            i = sel["i"]
-            off, typ = ftyp[fn]
-            val = (_parse_item(text, items) if fn in drop_ids
-                   else nlcl.parse_value(text, typ, nlcl.fixed_bits(stem, fn)))
-            if fn in drop_ids and val > 0x7FF:
-                raise ValueError("a drop item id is 0..2047 (the game keeps 11 bits of it)")
-            before = t.build()
-            t.set(i, off, val, typ)
-            if t.build() != before:
-                history.append(before)
-            changed(i, f"#{i}: {fn} set", fn)
-
-        item_choices = lambda: [_item_text(i, items) for i in sorted(set(items) | {0}) if i <= 0x7FF]
-        # a drop's item id gets the item drop-down; every other field a plain edit box
-        cells = CellEdit(fv, {"value": {"get": lambda fn: val_text(sel["i"], fn),
-                                        "put": put,
-                                        "choices_for": lambda fn: item_choices if fn in drop_ids else None,
-                                        "can": lambda fn: sel["i"] is not None}})
-
-        def on_field(_e=None):
-            f = fv.focus()
-            if f and notes.get(f):
-                self.status.config(text=f"{f}: {notes[f]}")
-        fv.bind("<<TreeviewSelect>>", on_field, add="+")
-
-        def undo(*_):
-            if history:
-                t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
-                changed(sel["i"] if sel["i"] is not None else 0, "Undone")
-        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
-
-        def revert():
-            if t.build() != data:
-                history.append(t.build())
-                t.__dict__.update(nlcl.NlclTable(data).__dict__)
-                changed(sel["i"] if sel["i"] is not None else 0, "Back to the file as opened")
-
-        btns = ttk.Frame(right); btns.pack(fill="x", padx=4, pady=2)
-        doc._monster = dict(tree=tv, fields=fv, cells=cells, undo=undo, revert=revert,
-                            select=lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel()))   # (selftest)
 
     def _view_hex(self, name, data, error: str | None = None):
         doc = self._doc

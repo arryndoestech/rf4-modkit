@@ -415,6 +415,8 @@ FIELD_SCHEMAS = {
             ("Produce chance", 305, "u8"),      # daily chance it gives its produce (255 = always)
             ("Figurine height", 306, "s16"),    # extra height for its figure in the companion menu
         ],
+        "limits": {f"Drop {k}": (0, 0x7FF, "the game keeps 11 bits of a drop's item id")
+                   for k in (1, 2, 3, 4)},
     },
     "rf3CropParam": {
         # 93 x 108; record index != item id. Verified in +28 base: stage durations in
@@ -1312,6 +1314,7 @@ VALUE_NAMES = {
 # the rare remap, see the Fishing_rate_fish_Spring notes) / "level" (row L = level L -> L+1).
 ROW_NAMES = {
     "rf3ParamSkill": "skill",
+    "rf3NpcParam": "char",
     "rf3MapMiniPos": "room",
     "Fishing_rate_fish_Spring": "fish",
     "rf3Parameter": "level",

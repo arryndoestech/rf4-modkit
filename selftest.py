@@ -11889,7 +11889,7 @@ _TAB_VIEWERS = {
     "aibn": "AI_m00.bin", "asatk": "as_atk_axe_00.bin", "bplist": "AppConfig.plist",
     "crop": "rf3CropParam.bin", "emf": "em.bin", "gen": "GenA01.bin",
     "gift_categories": "rf3PresentCategory.bin", "gifts": "rf3PresentNpc01.bin",
-    "hex": "01_M_VIZNAR.ogg", "image": "PetMe64-8.png", "monster": "rf3NpcParam.bin",
+    "hex": "01_M_VIZNAR.ogg", "image": "PetMe64-8.png",
     "montame": "rf3MonsterPresent.bin", "param": "Fishing_rate_fish_Spring.bin",
     "psb": "00_PLAYER_M.psbData", "quest": "rf3TxtQuest_split3_1.bin",
     "res": "ANIM_DUNG_A02.model", "rf4m": "MAP_CITY_00.rf4m", "route": "rf3route.bin",
@@ -11995,6 +11995,30 @@ def test_viewer_tabs():
             _check("a table the game never reads shows the 'Not used by the game' line; a live "
                    "table does not", shown["rf3ParameterNPC_02.bin"] and not shown["rf3Parameter.bin"],
                    str(shown))
+        # rf3NpcParam opens in the standard table: names, kind and totals columns, and the
+        # selected character's decoded sheet under the table; a drop id past 11 bits is refused
+        if "rf3NpcParam.bin" in byname:
+            n, _g, loader = byname["rf3NpcParam.bin"]
+            d = app._open_in_tab(app._entry_key(n), n, loader())
+            root.update_idletasks()
+            tv = d._param_tree
+            orc = tv.item("48", "values")
+            d._param_select(48)
+            root.update_idletasks()
+            txt = d._param_sheet.get("1.0", "end")
+            try:
+                d._param_cells.set("48", "Drop 1", "4000")
+                big = False
+            except Exception:
+                big = True
+            cols = list(tv["columns"])
+            _check("rf3NpcParam shows as a table with name / kind / total columns and the "
+                   "selected character's sheet below; a drop id past 2047 is refused",
+                   cols[:7] == ["#", "name", "kind", "ATK", "DEF", "MAT", "MDF"]
+                   and orc[1] == "Orc" and "field monster" in orc[2] and str(orc[3]) == "13"
+                   and txt.startswith("#48") and "drops:" in txt and big,
+                   (cols[:7], orc[:4], txt[:40], big))
+            app.cmd_close_tab(d)
         _check("viewer tabs raised no callback errors", not errs, str(errs[:1]))
     finally:
         gui.App._view_hex = _orig_hex

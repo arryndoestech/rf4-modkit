@@ -46,9 +46,9 @@ Q12 = 4096
 
 # char_id -> engine treatment (Actor_SpawnAtPos +0x15A4E0 / Actor_SpawnByCharId +0x15B510)
 _RANGES = [
-    (0, 47, "villager / human NPC"),
-    (48, 199, "field monster (char_monster)"),
-    (200, 253, "boss monster (char_boss)"),
+    (0, 47, "villager / person"),
+    (48, 199, "field monster"),
+    (200, 253, "boss"),
     (254, 348, "event NPC"),
     (349, 358, "monster-script special"),
     (359, 10 ** 9, "gate / warp"),
@@ -171,20 +171,18 @@ def render(table: nlcl.NlclTable, char_id: int,
            species: dict | None = None, item_names: dict | None = None) -> str:
     m = sheet(table, char_id, species, item_names)
     out = []
-    tame = " [tameable]" if m["tameable"] else ""
-    out.append(f"#{m['id']}  {m['name'] or '???'}{tame}   ({m['semantics']})")
+    tame = ", tameable" if m["tameable"] else ""
+    out.append(f"#{m['id']}  {m['name'] or '???'}   ({m['semantics']}{tame})")
     out.append(f"  HP {m['hp']}   ATK {m['atk']}   DEF {m['def']}   MAT {m['mat']}"
-               f"   MDF {m['mdf']}   killXP {m['kill_xp']}   level {m['level']}")
-    out.append(f"    = flat ATK {m['flat_atk']} DEF {m['flat_def']} MAT {m['flat_mat']}"
-               f" MDF {m['flat_mdf']}  + STR {m['str']} INT {m['int']} VIT {m['vit']}"
-               f"   (tame base {m['tame_base']})")
-    out.append(f"  AI {m['ai_script']} ({m['ai_file']})   model {m['model']}   skeleton {m['anim']}")
+               f"   MDF {m['mdf']}   Kill XP {m['kill_xp']}   Level {m['level']}")
+    out.append(f"    ATK = bonus {m['flat_atk']} + STR {m['str']},  MAT = bonus {m['flat_mat']}"
+               f" + INT {m['int']},  DEF / MDF = bonus {m['flat_def']} / {m['flat_mdf']}"
+               f" + half of VIT {m['vit']}")
+    out.append(f"  Tame chance {m['tame_base']}   AI script {m['ai_script']} ({m['ai_file']})"
+               f"   Model {m['model']}   Skeleton {m['anim']}")
     if m["drops"]:
-        out.append("  drops:")
-        for d in m["drops"]:
-            nm = f" {d['item']}" if d["item"] else ""
-            out.append(f"    slot{d['slot']}: item {d['item_id']}{nm}"
-                       f"  @ {d['permille'] / 10:.1f}% ({d['permille']}/1000)")
+        out.append("  drops: " + "  ·  ".join(
+            f"{d['item'] or 'item'} ({d['item_id']}) {d['permille'] / 10:g}%" for d in m["drops"]))
     else:
         out.append("  drops: (none)")
     weak = {e: v for e, v in m["elements"].items() if v}
