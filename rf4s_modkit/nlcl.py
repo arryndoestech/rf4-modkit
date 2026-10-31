@@ -239,7 +239,7 @@ FIELD_SCHEMAS = {
             ("ai_script", 34, "u16"),
             ("hp", 40, "u32"), ("str", 44, "s32"), ("int", 48, "s32"),
             ("vit", 52, "s32"), ("kill_xp", 56, "u32"),
-            ("flat_atk", 60, "s32"), ("flat_mat", 64, "s32"), ("hunger_drain", 68, "s32"),
+            ("flat_atk", 60, "s32"), ("flat_mat", 64, "s32"), ("knockout_buildup", 68, "s32"),
             ("flat_def", 72, "s32"), ("flat_mdf", 76, "s32"),
             ("lvup_w_str", 80, "s32"), ("lvup_w_int", 84, "s32"), ("lvup_w_vit", 88, "s32"),
             ("grow_atk_pct", 92, "s32"), ("grow_mat_pct", 96, "s32"),
@@ -432,7 +432,7 @@ FIELD_SCHEMAS = {
         # (RF4S.exe+0x43E60) starts from; the labels are PROVEN by where
         # Equip_AccumulateItemStats (+0xB11A0) merges each dword: +12 -> ATK total, +16 -> MAT
         # total, +20 -> DEF, +24 -> MDF, +28 -> STR, +32 -> INT, +36 -> VIT, +40 -> the
-        # crit/hunger knob (clamp 0..500), not HP. CORRECTED 2026-09-16: the older entry had
+        # knockout build-up (clamp 0..500), not HP. CORRECTED 2026-09-16: the older entry had
         # no +16 and labelled +24..+40 as mat/mdf/str/int/hp, each one field early.
         # ATK data-checked: Broadsword 5, Steel Sword 29, Wind Sword 496 (MAT 30), Dragon
         # Slayer 7000. +4 = boots effect word, +8 = accessory special bit (one-hot, 27 items),
@@ -444,9 +444,17 @@ FIELD_SCHEMAS = {
         # 1106 rows already leave ids 1106/1107 reading past the table).
         "grow": "fixed:1108",
         "names": "item",
+        # KNOCKOUT BUILD-UP (re-read 2026-10-31; the old notes called it hunger): every hit
+        # carries it to AttackInfo+334; Combat_GetStatusProcMask (+0x961B0) adds it, less the
+        # target's will resist (stats+48, Q12), to the target's counter (stats+168); past 100 the
+        # target gets status 0x100, and when its hurt / knockdown ends it collapses
+        # (Actor_BeginFallIntoPitDeath: the 4-second fall-and-vanish defeat; the player is knocked
+        # out). The counter drains 1 every 32 frames while the target is not busy
+        # (Actor_PreTickFrameCleanupAndDecay) and is cleared when a hit lands on a target lying in
+        # its knockout pose (Combat_ResolveHit).
         # FULL LAYOUT 2026-10-30 (Item_ComputeStats +0x43E60 loads every field below and adds the
         # forged materials' rf3ItemStrengthening dwords; Equip_AccumulateItemStats +0xB11A0 merges
-        # them into the wearer's stats, with the clamps noted): +40 hunger inflicted on hit
+        # them into the wearer's stats, with the clamps noted): +40 knockout build-up per hit
         # (stats+44 -> AttackInfo+334, 0..500), +44 crit chance (stats+72, 0..4096), +48 knockback
         # dealt (stats+56: a weapon hit pushes 6x it), +52 hit-stun dealt (stats+60: +30x it frames),
         # +56..+80 on-hit status chances poison..faint and +84 HP drain (Attack_PopulateAttackInfo
@@ -473,7 +481,7 @@ FIELD_SCHEMAS = {
             ("STR", 28, "s32"),               # strength added
             ("INT", 32, "s32"),               # intelligence added
             ("VIT", 36, "s32"),               # vitality added
-            ("Hunger on hit", 40, "s32"),     # how hungry a hit makes the target (0..500)
+            ("Knockout build-up", 40, "s32"),  # each hit builds up a knockout (less the target's will resist); past 100 the target collapses after its next knockback; drains about 2 a second
             ("Critical chance", 44, "s32"),   # chance of a critical hit (100% = always)
             ("Knockback", 48, "s32"),         # how far your hits push (a weapon hit pushes 6x this)
             ("Stun", 52, "s32"),              # how long your hits make the target flinch
@@ -493,7 +501,7 @@ FIELD_SCHEMAS = {
             ("Dark resist", 108, "s32"),      # dark damage taken: 100% = none, negative = weak
             ("Love resist", 112, "s32"),      # love damage taken: 100% = none, negative = weak
             ("Neutral resist", 116, "s32"),   # non-elemental damage taken: 100% = none, negative = weak
-            ("Will resist", 120, "s32"),      # resistance added to the wearer's will
+            ("Will resist", 120, "s32"),      # lowers the knockout build-up the wearer takes from hits (100% = none)
             ("Critical resist", 124, "s32"),  # lowers the attacker's critical chance (100% = never)
             ("Knockback resist", 128, "s32"),  # lowers how far hits push you (100% = not at all)
             ("Poison resist", 132, "s32"),    # 100% = immune to poison
@@ -585,14 +593,14 @@ FIELD_SCHEMAS = {
         #         dish and is skipped in the medicine level average (Crafting_CraftFromInputs
         #         +0x3DC86/+0x3DF1E). The low bits of S[38] are the dish effect word (cures 0x1..0x20,
         #         inflicts 0x40..0x1000, 0x2000 leveliser) ORed in by Item_ComputeEffectiveStats.
-        # S[1..8] core stats (S[8] = hunger inflicted on hit), S[10..12] crit / knockback / stun,
+        # S[1..8] core stats (S[8] = knockout build-up per hit), S[10..12] crit / knockback / stun,
         # S[23..24] crit / knockback resist (2026-10-30, see rf3ItemEquipmentParam), S[14..21] on-hit procs + HP drain, S[22..33]
         # resists + reach, S[34..37] heals, S[40..52] fed buff, S[53..66] fed resists/procs,
         # S[67..73] element affinities. S[9], S[13], S[39] are unread; S[61..66] are summed
         # into the dish record but zero in the shipped file.
         "names": "item",
         "fields": [(n, 4 * k, "s32") for k, n in enumerate([
-            "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "hunger",
+            "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "knockout_buildup",
             "unused9", "crit", "knockback", "stun", "unused13",
             "proc_poison", "proc_seal", "proc_paralysis", "proc_sleep", "proc_fatigue",
             "proc_cold", "proc_faint", "hp_drain_attack", "will_resist", "crit_res", "knockback_res",
@@ -644,7 +652,7 @@ FIELD_SCHEMAS = {
             # the STATUS block, copied as u16 (the low half of each dword) into the attack
             # (Combat_CopyAttackEntryAndScaleDamageToItemRecord +0x97250 and
             # Combat_FillAttackInfoFromEffectKind +0xED2D0 -> AttackInfo +334 / +340..+354)
-            ("Hunger", 96, "u16"),       # -> AttackInfo+334 (hunger; shipped 0..25)
+            ("Knockout build-up", 96, "u16"),  # -> AttackInfo+334: knockout build-up per hit (shipped 0..25), see rf3ItemEquipmentParam
             ("Psn Atk%", 100, "u16"), ("Seal Atk%", 104, "u16"), ("Par Atk%", 108, "u16"),
             ("Slp Atk%", 112, "u16"), ("Ftg Atk%", 116, "u16"), ("Sick Atk%", 120, "u16"),
             ("Faint Atk%", 124, "u16"),  # Q12 status proc chances poison..faint (409 = 10%)
