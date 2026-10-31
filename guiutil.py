@@ -647,6 +647,8 @@ class CellEdit:
         if sort and not hasattr(tv, "_table_sort"):     # a heading click sorts the rows too
             TableSort(tv)
         self._outline = [tk.Frame(tv, background=self.COLOR, width=2, height=2) for _ in range(4)]
+        self._geo = None                        # where the outline is up (x, y, w, h), or None
+        self._pending = None                    # the after_idle that puts it back up
         for seq, fn in (("<ButtonRelease-1>", self._click), ("<Double-Button-1>", self._dbl),
                         ("<<TreeviewSelect>>", self._selected), ("<Key>", self._key),
                         ("<Configure>", lambda _e: self.redraw())):
@@ -667,8 +669,8 @@ class CellEdit:
         def cmd(*a):
             if orig:
                 self.tv.tk.call(*orig, *a)
-            if self.redraw():                   # a scroll moved the outline: repaint after it
-                self.tv.after_idle(self._repaint)
+            if self._outline_at() != self._geo:  # a scroll moved the cell under the outline
+                self._relocate()
         self.tv.configure(**{opt: cmd})
 
     def _shown(self):
@@ -686,44 +688,53 @@ class CellEdit:
         except (ValueError, IndexError):
             return None
 
+    def _outline_at(self):
+        """Where the outline belongs now: the cursor cell's (x, y, w, h), or None."""
+        if self.cur is None or self.box is not None:
+            return None
+        iid, col = self.cur
+        try:
+            bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
+        except tk.TclError:
+            bb = ""
+        return tuple(bb) if bb else None
+
     def redraw(self):
-        """Put the outline on the cursor's cell; True when it moved (or went away). The four
-        edges are moved, not taken down and put up again. Where an edge was, the table has to
-        repaint itself -- see _repaint()."""
-        bb = ""
-        if self.cur is not None and self.box is None:
-            iid, col = self.cur
-            try:
-                bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
-            except tk.TclError:
-                bb = ""
-        geo = tuple(bb) if bb else None
-        if geo == getattr(self, "_geo", None):
+        """Put the outline on the cursor's cell now; True when it moved (or went away)."""
+        geo = self._outline_at()
+        if geo == self._geo:
             return False
         self._geo = geo
-        if not bb:
+        if geo is None:
             for f in self._outline:
                 f.place_forget()
             return True
-        x, y, w, h = bb
+        x, y, w, h = geo
         for f, (fx, fy, fw, fh) in zip(self._outline, ((x, y, w, 2), (x, y + h - 2, w, 2),
                                                        (x, y, 2, h), (x + w - 2, y, 2, h))):
             f.place(x=fx, y=fy, width=fw, height=fh)
         return True
 
-    def _repaint(self):
-        """Redraw the whole table over the spots the outline's edges left. Windows reports such
-        a spot uncovered late or not at all on some machines, which left old edges on screen;
-        so ask for it twice: a ttk configure() redraws the table, and RedrawWindow has Windows
-        invalidate it (the edges themselves are child windows and stay clipped out)."""
-        try:
-            self.tv.configure(takefocus=self.tv.cget("takefocus"))
-            if sys.platform == "win32":
-                import ctypes
-                # RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN
-                ctypes.windll.user32.RedrawWindow(self.tv.winfo_id(), None, None, 0x1 | 0x4 | 0x80)
-        except (tk.TclError, OSError, AttributeError):
-            pass
+    def _relocate(self):
+        """Move the outline without leaving its old edges on screen, and without waiting.
+
+        The edges are child windows. Moved, they leave their old pixels until the table repaints
+        that spot (some machines never got the repaint: two stray bars). So they are taken down
+        at once, the table is asked to redraw (ttk merges this with a redraw a scroll or a new
+        selection already queued), and they are put back at idle time, after that redraw:
+        it paints the table with no edges on it, and the edges then go up over it. One redraw
+        per move, never waited for -- held arrow keys keep up (a 100-column table takes about
+        0.2 s to redraw, every column of every visible row)."""
+        for f in self._outline:
+            f.place_forget()
+        self._geo = None
+        self.tv.configure(takefocus=self.tv.cget("takefocus"))   # queue the table redraw
+        if self._pending is None:
+            self._pending = self.tv.after_idle(self._put_back)
+
+    def _put_back(self):
+        self._pending = None
+        self.redraw()
 
     def see_column(self, col):
         """Scroll the table sideways just enough that column `col` is in view (Treeview.see only
@@ -745,15 +756,6 @@ class CellEdit:
         elif right > hi:
             tv.xview_moveto(min(left, right - (hi - lo)) / total)
 
-    def _settle(self):
-        """Move the outline, let the move happen, then repaint the table. In that order: a table
-        redraw already queued (by the row change or a scroll) would otherwise run before the
-        edges move and leave their old spots unpainted -- the second box, or two stray bars."""
-        if self.redraw():
-            self.tv.update_idletasks()          # the edges are really moved now
-            self._repaint()
-            self.tv.update_idletasks()
-
     def _selected(self, _e=None):
         f = self.tv.focus()
         cols = self.editable()
@@ -761,8 +763,7 @@ class CellEdit:
             return
         col = self.cur[1] if self.cur and self.cur[1] in cols else cols[0]
         self.cur = (f, col)
-        self._settle()                          # move the outline with the row, not a beat later
-        self.tv.after_idle(self._settle)        # and again once a scroll has settled
+        self._relocate()
 
     def _click(self, e):
         if self.tv.identify_region(e.x, e.y) != "cell":
@@ -770,7 +771,7 @@ class CellEdit:
         row, col = self.tv.identify_row(e.y), self._col_at(e.x)
         if row and col in self.cols:
             self.cur = (row, col)
-            self._settle()
+            self._relocate()
 
     def move(self, d):
         """Move the cell cursor d editable columns sideways (it stays inside the row)."""
@@ -781,7 +782,7 @@ class CellEdit:
         self.cur = (self.cur[0], cols[min(max(i + d, 0), len(cols) - 1)])
         self.tv.see(self.cur[0])
         self.see_column(self.cur[1])
-        self._settle()
+        self._relocate()
         return "break"
 
     def targets(self, iid):
