@@ -12047,7 +12047,9 @@ def test_viewer_tabs():
             root.update_idletasks()
             bb = tv.bbox("48", ce.cur[1])
             edges = [(f.winfo_ismapped(), f.winfo_x()) for f in ce._outline]
-            right_ok = bool(bb) and bb[0] + bb[2] <= tv.winfo_width() + 2 and float(tv.xview()[0]) > 0
+            cw = tv._colwin
+            right_ok = (bool(bb) and bb[0] + bb[2] <= tv.winfo_width() + 2 and cw.first > 0
+                        and len(tv["displaycolumns"]) < 30 and tv["displaycolumns"][:2] == ("#", "name"))
             for _k in range(40):
                 ce.move(-1)
             root.update_idletasks()

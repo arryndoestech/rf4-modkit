@@ -205,10 +205,16 @@ def _model_owner(file_name):
             return hit
     return ""
 
-def _table_scrollbars(top, tv, widths=None):
+# from this many columns on a table is drawn a window of columns at a time (guiutil.ColumnWindow)
+_WIDE_TABLE_COLUMNS = 24
+
+
+def _table_scrollbars(top, tv, widths=None, freeze=0):
     """Scroll bars for a wide Treeview table: every column keeps its width (wide enough for its
     heading, or widths[col]) instead of being squeezed into the window, a horizontal bar appears
-    under the table, and Shift + mouse wheel scrolls sideways."""
+    under the table, and Shift + mouse wheel scrolls sideways. A table of _WIDE_TABLE_COLUMNS or
+    more is shown a window of columns at a time (Tk redraws every column, in view or not), with
+    its first `freeze` columns kept at the left."""
     import tkinter.font as tkfont
     try:
         f = tkfont.nametofont("TkHeadingFont")
@@ -222,13 +228,20 @@ def _table_scrollbars(top, tv, widths=None):
     vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
     hs = ttk.Scrollbar(top, orient="horizontal", command=tv.xview)
     tv.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+    cw = None
+    if len(tv["columns"]) >= _WIDE_TABLE_COLUMNS:
+        from guiutil import ColumnWindow
+        cw = ColumnWindow(tv, hs, freeze)
+        hs.configure(command=cw.xview)
+        tv.configure(xscrollcommand=lambda *_a: None)   # the window drives the bar, not the table
     top.grid_rowconfigure(0, weight=1)
     top.grid_columnconfigure(0, weight=1)
     tv.grid(row=0, column=0, sticky="nsew")
     vs.grid(row=0, column=1, sticky="ns")
     hs.grid(row=1, column=0, sticky="ew")
     # sideways: a Treeview x unit is 1 pixel, so a notch moves 100 px; rows: 3 per notch
-    tv.bind("<Shift-MouseWheel>", wheel_handler(lambda n: tv.xview_scroll(n, "units"), 100))
+    tv.bind("<Shift-MouseWheel>", wheel_handler(cw.scroll, 1) if cw is not None
+            else wheel_handler(lambda n: tv.xview_scroll(n, "units"), 100))
     tv.bind("<MouseWheel>", wheel_handler(lambda n: tv.yview_scroll(n, "units"), 3))
     return vs, hs
 
@@ -6381,11 +6394,13 @@ class App:
         for c in cols:
             tv.heading(c, text=c)
             tv.column(c, width=widths.get(c, 130 if c in pick_f else 70), anchor="w")
-        _table_scrollbars(top, tv)              # wide tables scroll sideways (Shift + wheel too)
+        # wide tables scroll sideways (Shift + wheel too); the row number and name stay put
+        _table_scrollbars(top, tv, freeze=1 + bool(name_col))
 
         def set_display():
             hide = set() if show_unused.get() else set(unused)
-            tv["displaycolumns"] = [c for c in cols if c not in hide]
+            from guiutil import set_shown_columns
+            set_shown_columns(tv, [c for c in cols if c not in hide])
         set_display()
 
         # the info line: column help while hovering a heading, else the row / table hint

@@ -275,6 +275,122 @@ def wheel_handler(scroll, per_notch):
     return handler
 
 
+class ColumnWindow:
+    """Show a wide Treeview's columns a window at a time, scrolled sideways by whole columns.
+
+    Tk redraws every column of every visible row -- the ones scrolled out of view too -- so a
+    100-column table took about 0.2 s per redraw (a scroll, a new row, the cell cursor moving),
+    12 columns 0.03 s. Here the table is only ever given the columns in view (displaycolumns);
+    the horizontal scroll bar, Shift + wheel and CellEdit's cursor move the window. The first
+    `freeze` columns (the row number, the name) stay at the left.
+
+    `columns` is the list the viewer wants shown (set_columns), in order; the table's own
+    displaycolumns is the frozen part plus the window. Emits <<ColumnsShifted>> after the window
+    changed, so overlays (the cell cursor) can follow."""
+
+    def __init__(self, tv, hs, freeze=0):
+        self.tv, self.hs, self.freeze = tv, hs, freeze
+        dc = [str(c) for c in tv["displaycolumns"]]
+        self.columns = [str(c) for c in tv["columns"]] if dc in ([], ["#all"]) else dc
+        self.first = 0                          # index of the first scrolling column in view
+        self._applied = None
+        tv._colwin = self
+        tv.bind("<Configure>", lambda _e: self.apply(), add="+")
+        # a heading's width dragged: the window holds a different number of columns
+        tv.bind("<ButtonRelease-1>", lambda e: self.apply()
+                if tv.identify_region(e.x, e.y) in ("separator", "heading") else None, add="+")
+        self.apply()
+
+    @property
+    def frozen(self):
+        return self.columns[:self.freeze]
+
+    @property
+    def scrolling(self):
+        return self.columns[self.freeze:]
+
+    def _w(self, c):
+        return int(self.tv.column(c, "width"))
+
+    def _room(self):
+        return max(1, self.tv.winfo_width() - sum(self._w(c) for c in self.frozen))
+
+    def _fit(self, first):
+        """(columns fully in view, columns to show) from scrolling column `first` on."""
+        room, acc, full, shown = self._room(), 0, 0, []
+        for c in self.scrolling[first:]:
+            shown.append(c)
+            acc += self._w(c)
+            if acc <= room:
+                full += 1
+            if acc >= room:
+                break
+        return full, shown
+
+    def _last_first(self):
+        """The largest `first` that still fills the view (no empty space after the end)."""
+        sc, room, acc, k = self.scrolling, self._room(), 0, len(self.scrolling)
+        while k > 0 and acc + self._w(sc[k - 1]) <= room:
+            acc += self._w(sc[k - 1])
+            k -= 1
+        return k
+
+    def apply(self):
+        n = len(self.scrolling)
+        self.first = max(0, min(self.first, self._last_first()))
+        full, shown = self._fit(self.first)
+        dc = self.frozen + shown
+        if dc != self._applied and dc:
+            self._applied = dc
+            self.tv["displaycolumns"] = dc
+            self.tv.xview_moveto(0)
+            self.tv.event_generate("<<ColumnsShifted>>")
+        if n:
+            self.hs.set(self.first / n, min(1.0, (self.first + max(full, 1)) / n))
+        else:
+            self.hs.set(0.0, 1.0)
+
+    def set_columns(self, cols):
+        """The columns the viewer wants shown (e.g. without the unused ones), in order."""
+        self.columns = [str(c) for c in cols]
+        self._applied = None
+        self.apply()
+
+    def xview(self, *args):
+        """The horizontal scroll bar's command: 'moveto f' / 'scroll n units|pages'."""
+        if args and args[0] == "moveto":
+            self.first = int(round(float(args[1]) * len(self.scrolling)))
+        elif args and args[0] == "scroll":
+            step = max(1, self._fit(self.first)[0]) if str(args[2]).startswith("page") else 1
+            self.first += int(args[1]) * step
+        self.apply()
+
+    def scroll(self, n):
+        self.first += n
+        self.apply()
+
+    def see(self, col):
+        """Shift the window just enough that column `col` is fully in view."""
+        if col not in self.scrolling:
+            return
+        i = self.scrolling.index(col)
+        if i < self.first:
+            self.first = i
+        else:
+            while self.first < i and i >= self.first + max(self._fit(self.first)[0], 1):
+                self.first += 1
+        self.apply()
+
+
+def set_shown_columns(tv, cols):
+    """Show these columns of a table (through its ColumnWindow when it has one)."""
+    cw = getattr(tv, "_colwin", None)
+    if cw is not None:
+        cw.set_columns(cols)
+    else:
+        tv["displaycolumns"] = list(cols)
+
+
 def later(widget, fn, ms=0):
     """widget.after / after_idle that is cancelled when `widget` is destroyed, so a
     callback never fires into a torn-down editor (Tk reports those as 'invalid command
@@ -661,6 +777,7 @@ class CellEdit:
             tv.bind(seq, fn)
         for opt in ("yscrollcommand", "xscrollcommand"):
             self._follow(opt)
+        tv.bind("<<ColumnsShifted>>", lambda _e: self._relocate(), add="+")   # ColumnWindow
 
     # ---- the cell cursor ------------------------------------------------------------------
     def _follow(self, opt):
@@ -674,6 +791,15 @@ class CellEdit:
         self.tv.configure(**{opt: cmd})
 
     def _shown(self):
+        """The columns the table shows, in order -- through a ColumnWindow all of them, also
+        the ones outside its window (the cursor moves through those and the window follows)."""
+        cw = getattr(self.tv, "_colwin", None)
+        if cw is not None:
+            return list(cw.columns)
+        return self._on_screen()
+
+    def _on_screen(self):
+        """The columns the Treeview is drawing now (identify_column numbers these)."""
         dc = [str(c) for c in self.tv["displaycolumns"]]
         return [str(c) for c in self.tv["columns"]] if dc in ([], ["#all"]) else dc
 
@@ -684,7 +810,7 @@ class CellEdit:
     def _col_at(self, x):
         cid = self.tv.identify_column(x)
         try:
-            return self._shown()[int(cid[1:]) - 1]
+            return self._on_screen()[int(cid[1:]) - 1]
         except (ValueError, IndexError):
             return None
 
@@ -740,6 +866,10 @@ class CellEdit:
         """Scroll the table sideways just enough that column `col` is in view (Treeview.see only
         scrolls rows)."""
         tv = self.tv
+        cw = getattr(tv, "_colwin", None)
+        if cw is not None:
+            cw.see(col)
+            return
         shown = self._shown()
         if col not in shown:
             return
