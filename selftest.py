@@ -1472,10 +1472,10 @@ def test_param():
             _q = next(n for n in _stg.NAMES if _stg.UNIT[n] == "q12")
             _shown = _st.to_csv(shown=True).splitlines()
             _hdr = _shown[0].split(",")
-            _check("the strengthening view's Export CSV writes Q12 fields as percentages "
-                   "(the raw CLI CSV keeps numbers)",
-                   all(r.split(",")[_hdr.index(_q)].endswith("%") for r in _shown[1:4])
-                   and not _st.to_csv().splitlines()[1].split(",")[_hdr.index(_q)].endswith("%"),
+            _check("the strengthening view's Export CSV writes Q12 fields as the editor shows "
+                   "them ('0 (+0.0%)'); the raw CLI CSV keeps numbers",
+                   all(r.split(",")[_hdr.index(_q)].endswith("%)") for r in _shown[1:4])
+                   and "%" not in _st.to_csv().splitlines()[1],
                    (_q, _shown[1][:80]))
     # named CSV view (rf4mod param csv / GUI Export CSV): schema columns + a name column
     pt = next((p for p in files if p.name == "rf3PriceTable.bin"), None)
