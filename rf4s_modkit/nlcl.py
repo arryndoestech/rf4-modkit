@@ -151,8 +151,9 @@ FIELD_SCHEMAS = {
         # are index-bound, so a new quest needs a line appended to both (`rf4mod text add`).
         "grow": "paired-text:rf3TxtQuest_split3_2 (+ _split3_3)",
         "fields": [
-            ("client_id", 0, "u8"),
-            ("category", 1, "u8"),
+            ("Client", 0, "u8"),            # the villager who posts the request (22 / 23 = Anonymous)
+            ("Request kind", 1, "u8"),      # what kind of request it is: picks the objective and reward texts
+            ("unused 2", 2, "u16"),
         ],
     },
     "rf4TxtQuestRequestDetailFormat_split2_1": {
@@ -173,7 +174,7 @@ FIELD_SCHEMAS = {
         "grow": "unused:the exe loads archive 16345 but never reads its records; the format "
                 "strings are picked by the quest category byte whose meaning is hard-coded "
                 "in Quest_LoadDetailStrings (+0x1ED1F0), so a 34th row/line is unreachable",
-        "fields": [("flag", 0, "u8"), ("b1", 1, "u8"), ("b2", 2, "u8"), ("b3", 3, "u8")],
+        "fields": [("Flag", 0, "u8"), ("unused 1", 1, "u8"), ("unused 2", 2, "u8"), ("unused 3", 3, "u8")],
     },
     "rf3FaceEffectParam": {
         # 442 x 8 B, archive 4003 (rom:/face/). Layout DATA-DERIVED (2026-09-19, no reader in
@@ -188,8 +189,8 @@ FIELD_SCHEMAS = {
         # (+0x165FC0), so this table is inherited 3DS data the PC build never loads by id.
         "grow": "unused:no code site loads archive 4003 (the 0xFA3 constants in the exe are "
                 "the 4003+char_id face-icon base)",
-        "fields": [("x0", 0, "s8"), ("y0", 1, "s8"), ("x1", 2, "s8"), ("y1", 3, "s8"),
-                   ("x2", 4, "s8"), ("y2", 5, "s8"), ("x3", 6, "s8"), ("y3", 7, "s8")],
+        "fields": [("Spot 1 X", 0, "s8"), ("Spot 1 Y", 1, "s8"), ("Spot 2 X", 2, "s8"), ("Spot 2 Y", 3, "s8"),
+                   ("Spot 3 X", 4, "s8"), ("Spot 3 Y", 5, "s8"), ("Spot 4 X", 6, "s8"), ("Spot 4 Y", 7, "s8")],
     },
     "rf3ParamSkillExp": {
         # 100 x 4 B skill XP-to-next curve (archives 14820..14824 = rf3ParamSkillExp /
@@ -834,7 +835,7 @@ FIELD_SCHEMAS = {
                   "rf3Parameter.bin and the level table inside RF4S.exe.",
         "grow": "unused:the exe never reads these records",
         "fields": [
-            ("col0", 0, "u32"), ("col1", 4, "u32"), ("col2", 8, "u32"), ("col3", 12, "u32"),
+            ("Value 1", 0, "u32"), ("Value 2", 4, "u32"), ("Value 3", 8, "u32"), ("Value 4", 12, "u32"),
         ],
     },
     "rf3MapMiniPos": {
@@ -1064,8 +1065,10 @@ FIELD_SCHEMAS = {
         # a new event needs its title line appended there too.
         "grow": "paired-text:rf3TxtCalendar_split2_2",
         "fields": [
-            ("char_id", 0, "u8"), ("season", 1, "u8"),
-            ("day", 2, "u8"), ("festival_id", 3, "u8"),
+            ("Birthday of", 0, "u8"),       # whose birthday it is (30 = a festival)
+            ("Season", 1, "u8"),
+            ("Day", 2, "u8"),               # 1..30
+            ("Festival", 3, "u8"),          # festivals: shown only once this Prince-point order festival is scheduled (0 for birthdays)
         ],
     },
     "rf3TxtShopNpc_split2_1": {
@@ -1086,10 +1089,13 @@ FIELD_SCHEMAS = {
         # line of the TEXT twin rf3TxtShopNpc_split2_2.<locale> (16385) -- append there too.
         "grow": "paired-text:rf3TxtShopNpc_split2_2",
         "fields": [
-            ("char_id", 0, "u16"), ("slot", 2, "u16"),
-            ("voice_a", 4, "u16"), ("voice_b", 6, "u16"),
-            ("emote", 8, "u16"), ("duration", 10, "u16"),
-            ("flag", 12, "u16"), ("pad", 14, "u16"),
+            ("Character", 0, "u16"),        # who says it
+            ("Line kind", 2, "u16"),        # when it is said (greeting, thanks, no money ...)
+            ("Voice A", 4, "u16"), ("Voice B", 6, "u16"),  # the voice clip pair (0 = no voice)
+            ("Expression", 8, "u16"),       # the portrait expression
+            ("Bubble time", 10, "u16"),     # how long the speech bubble stays, in frames
+            ("Flag", 12, "u16"),
+            ("unused 14", 14, "u16"),
         ],
     },
     "rf3TxtNameEntryBoard_split2_1": {
@@ -1101,7 +1107,7 @@ FIELD_SCHEMAS = {
         # ADD ROW: not verified -- the only code site naming archive 16341 is the resource
         # queue in rf4NameEntry_Step0_QueueArchiveLoads (RF4S.exe+0x4EF30); the key-count source was not
         # traced (2026-09-19).
-        "fields": [("utf8_be", 0, "u32")],
+        "fields": [("Key character", 0, "u32")],  # the key's character as its UTF-8 bytes (0xE38182 = あ)
     },
     "rf4TxtShop_split2_1": {
         # 14 x 16-byte, ALL ZERO (checked 2026-08-31) — a count-carrier for the 14
@@ -1481,8 +1487,8 @@ FLAG_FIELDS = {
         0x40: "Staff level / quality bonuses", 0x80: "Accessory level / quality bonuses"}},
     "rf3ScheduleID": {"Flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
                                 0x8: "Ignore crowding"}},
-    "rf3TxtShopNpc_split2_1": {"flag": {}},
-    "rf4TxtQuestRequestDetailFormat_split2_1": {"flag": {}},
+    "rf3TxtShopNpc_split2_1": {"Flag": {}},
+    "rf4TxtQuestRequestDetailFormat_split2_1": {"Flag": {}},
 }
 
 
@@ -1496,9 +1502,9 @@ REF_FIELDS = {
     "rf3Recipe": {f: "item" for f in ("Result", *(f"Ingredient {k}" for k in range(1, 7)))},
     "MapOre_Rate": {f: "item" for f in ("Item 1", "Item 2", "Item 3", "Rare item")},
     "rf3ItemList": {"Family": "item"},
-    "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)
-    "rf3TxtShopNpc_split2_1": {"char_id": "char"},
-    "rf3TxtQuest_split3_1": {"client_id": "char"},
+    "rf3TxtCalendar_split2_1": {"Birthday of": "char"},   # 30 = festival (VALUE_NAMES)
+    "rf3TxtShopNpc_split2_1": {"Character": "char"},
+    "rf3TxtQuest_split3_1": {"Client": "char"},
     "rf3ParamSkillData": {f: "skill" for f in ("Skill 1", "Skill 2", "Skill 3")},
     "rf3ParamMagic": {"Skill": "skill"},
     "rf3ScheduleID": {"Room": "room"},
@@ -1508,12 +1514,12 @@ REF_FIELDS = {
 _SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
 # Named values of plain fields (shown as "Name (value)" and picked from a list).
 VALUE_NAMES = {
-    "rf3TxtCalendar_split2_1": {"season": _SEASONS, "char_id": {30: "(festival)"}},
-    "rf3TxtShopNpc_split2_1": {"slot": {
+    "rf3TxtCalendar_split2_1": {"Season": _SEASONS, "Birthday of": {30: "(festival)"}},
+    "rf3TxtShopNpc_split2_1": {"Line kind": {
         0: "unused", 1: "greeting", 2: "browse", 3: "ponder", 4: "decide", 5: "confirm",
         6: "thanks", 7: "come again", 8: "decline", 9: "no space", 10: "no money",
         11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
-    "rf3TxtQuest_split3_1": {"client_id": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
+    "rf3TxtQuest_split3_1": {"Client": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
     # 388 of the 392 rows hold 0 (char 0 is the player): no other form
     "rf3NpcParam": {"Transforms into": {0: "(none)"},
                     "Motion set": {0: "Frey's", 1: "Lest's"}},   # the game tests it nonzero

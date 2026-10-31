@@ -1298,15 +1298,15 @@ def test_bin_editors():
             d = (B / "rf3TxtCalendar_split2_1.bin").read_bytes()
             app._show("rf3TxtCalendar_split2_1.bin", d); doc = app._doc
             tvc = doc._param_tree
-            shown = (tvc.set("0", "char_id"), tvc.set("1", "char_id"), tvc.set("12", "season"))
+            shown = (tvc.set("0", "Birthday of"), tvc.set("1", "Birthday of"), tvc.set("12", "Season"))
             doc._param_select(1)
             pc = doc._param_cells
-            form = (pc.cols["char_id"]["get"]("1"), pc.cols["season"]["get"]("1"))
-            pc.set(1, "season", "summer")
+            form = (pc.cols["Birthday of"]["get"]("1"), pc.cols["Season"]["get"]("1"))
+            pc.set(1, "Season", "summer")
             moved = nlcl.NlclTable(doc.cur_data).get(1, 1, "u8")
             doc._param_undo()
             undone = doc.cur_data == d
-            pc.set(1, "day", "9"); doc._param_revert()
+            pc.set(1, "Day", "9"); doc._param_revert()
             reverted = doc.cur_data == d
             about = doc._param_about(); about_ok = "CALENDAR" in about.winfo_children()[0].get("1.0", "end")
             about.destroy()
@@ -1543,7 +1543,7 @@ def test_param():
         row = t.row(0, "rf3ParameterNPC_01")
         _check("rf3ParameterNPC alias -> 4-col schema (vestigial 14814)",
                sch is not None and "alias" not in sch and len(sch["fields"]) == 4
-               and row["col0"] == 6 and row["col1"] == 9 and row["col2"] == 3 and row["col3"] == 5)
+               and row["Value 1"] == 6 and row["Value 2"] == 9 and row["Value 3"] == 3 and row["Value 4"] == 5)
         _check("tables the game never reads say so (rf3ParameterNPC_01..03, the quest format "
                "companion); live tables do not",
                all(nlcl.unused_reason(f"rf3ParameterNPC_0{k}") for k in (1, 2, 3))
@@ -1688,15 +1688,15 @@ def test_param():
         r1 = t.row(1, "rf3TxtCalendar_split2_1")    # "Ventuswill's Birthday"
         r42 = t.row(42, "rf3TxtCalendar_split2_1")  # "Christmas"
         ok = (t.entry_count == 45 and t.record_size == 4
-              and (r1["char_id"], r1["season"], r1["day"], r1["festival_id"]) == (21, 0, 4, 0)
-              and (r42["char_id"], r42["season"], r42["day"], r42["festival_id"]) == (30, 3, 25, 25))
+              and (r1["Birthday of"], r1["Season"], r1["Day"], r1["Festival"]) == (21, 0, 4, 0)
+              and (r42["Birthday of"], r42["Season"], r42["Day"], r42["Festival"]) == (30, 3, 25, 25))
         _check("rf3TxtCalendar event table", ok, "Venti bday spring 4, Christmas winter 25")
     sn = next((p for p in files if p.name == "rf3TxtShopNpc_split2_1.bin"), None)
     if sn:
         t = nlcl.NlclTable.load(sn)
         r = t.row(15, "rf3TxtShopNpc_split2_1")     # char 2 slot 1 "Welcome!"
         ok = (t.entry_count == 27 * 14 and t.record_size == 16
-              and (r["char_id"], r["slot"], r["voice_a"], r["duration"]) == (2, 1, 1608, 90)
+              and (r["Character"], r["Line kind"], r["Voice A"], r["Bubble time"]) == (2, 1, 1608, 90)
               and all(t.get(i * 14, 0, "u16") == i + 1 for i in range(27)))
         _check("rf3TxtShopNpc dialogue meta", ok, "27 chars x 14 slots, voiced greeting")
     ne = next((p for p in files if p.name == "rf3TxtNameEntryBoard_split2_1.bin"), None)
@@ -7163,14 +7163,14 @@ def test_rows_em_structural_skill():
             marks = [k for k in range(t.entry_count) if t.get(k, 0, "s8") == 1 and t.get(k, 1, "s8") == 0]
             _check("rf3FaceEffectParam schema: 442 = 34 slots x 13 kinds, s8 anchor pairs, kind-11 marker",
                    t.entry_count == 442 and t.record_size == 8
-                   and (r7["x0"], r7["y0"], r7["x3"], r7["y3"]) == (-32, -40, 32, -60)
+                   and (r7["Spot 1 X"], r7["Spot 1 Y"], r7["Spot 4 X"], r7["Spot 4 Y"]) == (-32, -40, 32, -60)
                    and marks == [13 * s + 11 for s in range(34)]
                    and (t.grow_info("rf3FaceEffectParam")[0] or "").startswith("unused:"))
         qf = _first("rf4TxtQuestRequestDetailFormat_split2_1.bin")
         if qf:
             t = nlcl.NlclTable.load(qf)
             _check("rf4TxtQuestRequestDetailFormat_split2_1 schema: 33 x 4, flag=2 on rows 1..3 only (dead data)",
-                   t.entry_count == 33 and [k for k in range(33) if t.row(k, qf.stem)["flag"]] == [1, 2, 3]
+                   t.entry_count == 33 and [k for k in range(33) if t.row(k, qf.stem)["Flag"]] == [1, 2, 3]
                    and all(t.get(k, b, "u8") == 0 for k in range(33) for b in (1, 2, 3))
                    and (t.grow_info(qf.stem)[0] or "").startswith("unused:"))
         se = _first("rf3ParamSkillExpFarm.bin")

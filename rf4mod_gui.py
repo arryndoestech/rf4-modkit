@@ -6182,8 +6182,9 @@ class App:
         cols = ("#", "client_id", "client", "category", "type")
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=18)
+        heads = {"client_id": "Client id", "client": "Client", "category": "Kind", "type": "Request kind"}
         for c, w in (("#", 45), ("client_id", 65), ("client", 140), ("category", 60), ("type", 340)):
-            tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
+            tv.heading(c, text=heads.get(c, c)); tv.column(c, width=w, anchor="w")
         vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
