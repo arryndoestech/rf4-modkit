@@ -177,8 +177,8 @@ FIELD_SCHEMAS = {
         # unsigned `xp < table[min(level,99)]` compare, so a threshold above 0xFFFFFF can never
         # be reached (the skill stops levelling); 0 levels instantly.
         "grow": "fixed:100",
-        "fields": [("xp_to_next", 0, "s32")],
-        "limits": {"xp_to_next": (0, 0xFFFFFF, "Player_gainEXP clamps skill XP to 0xFFFFFF, "
+        "fields": [("XP to next level", 0, "s32")],
+        "limits": {"XP to next level": (0, 0xFFFFFF, "Player_gainEXP clamps skill XP to 0xFFFFFF, "
                                                "so a larger threshold is never reached")},
     },
     "rf3ParamSkillExpFarm": {"alias": "rf3ParamSkillExp"},
@@ -1003,8 +1003,11 @@ FIELD_SCHEMAS = {
     },
     "Fishing_rate_fish_Spring": {
         # 38 x 88 B (22 dwords) fish-SPECIES spawn-weight table, archive 14803 (14804 =
-        # Fishing_rate_fish_Spring2, the twin the game switches to once game flag 0xBAE
-        # 'Forewater Bell' is set). Row = species index: rows 0..31 = fish item 985+row (Masu
+        # Fishing_rate_fish_Spring2, the twin the game switches to while zone-1 game flag 2990
+        # FLG_FISH_SUBTABLE is set; checked 2026-10-31: RF4S.exe only READS it (6 sites, all in
+        # the two readers below), and no constant 2990 appears in any rf3.mc scene or em.bin
+        # entry, so the shipped game never uses Spring2 -- it differs from Spring in rows 1, 18,
+        # 20, 27 only, x10 weights). Row = species index: rows 0..31 = fish item 985+row (Masu
         # Trout, Squid, Taimen, ...), rows 32..37 = g_fishRareSpeciesRemapTable (RF4S.exe
         # +0x4D2528) = items 1017, 1018, 1019, 893, 894, 934.  Decoded 2026-09-19 from the only
         # two code sites that load archive 14803/14804 (offline immediate scan of RF4S.exe):
@@ -1013,8 +1016,11 @@ FIELD_SCHEMAS = {
         #     spring/summer/fall/winter (a map's own season override wins). The per-pole rod
         #     modifier (hard-coded in Fishing_RecomputeRodWeights, i16 per species) is added
         #     to a non-zero weight and the sum clamped to 0..99999; a 0 weight stays 0, so a
-        #     species with all-zero zone weights never spawns. dw21 = size CLASS 0..3 = the
-        #     column of Fishing_rate_lv_* used for the 10-bracket size roll.
+        #     species with all-zero zone weights never spawns. Both callers pass the rod
+        #     buffer, so every weight is clamped to 0..99999 (a negative one counts as 0).
+        #     Only rows 0..37 are summed (loop of 38), so added rows are never picked.
+        #     dw21 = size CLASS 0..3 = the column of Fishing_rate_lv_* used for the 10-bracket
+        #     size roll (a class past 3 reads the next row's weights).
         #   Fishing_RollCaughtLevelWeightedBySpecies (+0x183E60): reads dw21 only.
         # CORRECTED 2026-09-30: every dw0..dw20 is a weight COLUMN. The column is
         # `zone_override - 1` when a caller passes one (an immediate scan cannot see this
@@ -1029,8 +1035,19 @@ FIELD_SCHEMAS = {
         #                  500 mm in column 16 + the equipped pole's tier (Cheap / Beginner's /
         #                  Skilled / Famous / Sacred Pole = items 584..588) and turns it into
         #                  the result only when that is a Can / Boot / Rare Can (rows 32..34);
-        #                  shipped junk share 14 / 13 / 11 / 8 / 3 %
+        #                  shipped junk share 14 / 13 / 11 / 8 / 3 %. Only a catch under
+        #                  500 mm (the fish actor's +48 size) gets the re-roll.
         # The per-column weights are weights among the 38 species (a 0 never spawns).
+        "grow": "fixed:38",
+        "limits": dict(
+            {f: (0, 99999, "the game clamps every spawn weight to 0..99999") for f in (
+                "Spring", "Spring rain", "Summer", "Summer rain", "Fall", "Fall rain", "Winter",
+                "Winter rain", "Sercerezo Hill", "Idra Cave B2", "Idra Cave B1",
+                "Yokmir Forest A04", "Yokmir Forest A06", "Water Ruins", "Maya Road",
+                "Sechs Territory", "Junk Cheap Pole", "Junk Beginner's Pole",
+                "Junk Skilled Pole", "Junk Famous Pole", "Junk Sacred Pole")},
+            **{"Size class": (0, 3, "picks one of the 4 columns of Fishing_rate_lv; a larger "
+                                    "value reads the next bracket's weights")}),
         "fields": [
             ("Spring", 0, "s32"),            # spring, clear weather
             ("Spring rain", 4, "s32"),       # spring, rain / snow / storm (weather 1..4)
@@ -1053,32 +1070,41 @@ FIELD_SCHEMAS = {
             ("Junk Skilled Pole", 72, "s32"),     # junk re-roll, tier 2
             ("Junk Famous Pole", 76, "s32"),      # junk re-roll, tier 3
             ("Junk Sacred Pole", 80, "s32"),      # junk re-roll, tier 4 (shipped: 3 % junk)
-            ("Size class", 84, "u32"),            # 0..3: the column of Fishing_rate_lv_* used for this fish's size / level roll
+            ("Size class", 84, "u32"),            # 0..3: which column of Fishing_rate_lv rolls this fish's size and its item level
         ],
     },
-    "Fishing_rate_fish_Spring2": {"alias": "Fishing_rate_fish_Spring"},
+    "Fishing_rate_fish_Spring2": {"alias": "Fishing_rate_fish_Spring",
+                                  "unused": 'The game reads it only while game flag FLG_FISH_SUBTABLE is set, and nothing in the game sets that flag (no code in RF4S.exe and no event script writes it), so the plain Spring file is the one in use.'},
     "Fishing_rate_lv_Spring": {
         # 10 x 16 B size-bracket / catch-level weights, archive 14805 (14806 =
         # Fishing_rate_lv_Spring2, byte-identical in the shipped bundle, selected by the same
-        # 0xBAE flag). Row = bracket 0..9 (0 = smallest), column = the species' size_class
+        # flag 2990, which nothing sets). Row = bracket 0..9 (0 = smallest), column = the species' size_class
         # (Fishing_rate_fish_* dw21).  Readers (2026-09-19):
         #   Fishing_PickSpeciesAndSize (+0x183A40): weighted roll over the 10 rows of column
         #     size_class -> size bracket; size_mm = min + bracket*step + rand(step+1) with
         #     (min, max) from g_fishSizeRangeTable / g_fishMaxSizeTable (+0x4D39D0, 38 pairs)
         #     and step = (max - min) / 10.
+        #   The caught fish's ITEM LEVEL (checked 2026-10-31): Fishing_SpawnFishActor
+        #     (+0x181350) stores the size bracket at the fish actor's +28 and the size in mm at
+        #     +48; Fishing_FinalizeCatch (+0x181970) packs the item with level = that bracket
+        #     (0 = Lv 1), then calls the roll below once per charge level of the cast
+        #     (PlayerStats +132) and keeps the highest result. An uncharged cast keeps the
+        #     bracket. Only rows 0..9 are read.
         #   Fishing_RollCaughtLevelWeightedBySpecies (+0x183E60): the same 10-row roll for the
         #     catch's level byte, but it indexes the file ONE DWORD EARLY (payload dword
         #     4*level + size_class - 1): class 0 level 0 reads the NLCL count field (10) and
         #     class 0 level L>0 reads row L-1's class3, every other class reads the column to
         #     its left. Reproduce this quirk when balancing; do not 'fix' the table for it.
+        "grow": "fixed:10",
         "fields": [
-            ("Size class 0", 0, "u32"),      # weight of this size bracket for fish of size class 0
+            ("Size class 0", 0, "u32"),      # weight of this size bracket (and item level) for fish of size class 0
             ("Size class 1", 4, "u32"),      # ... size class 1
             ("Size class 2", 8, "u32"),      # ... size class 2
             ("Size class 3", 12, "u32"),     # ... size class 3
         ],
     },
-    "Fishing_rate_lv_Spring2": {"alias": "Fishing_rate_lv_Spring"},
+    "Fishing_rate_lv_Spring2": {"alias": "Fishing_rate_lv_Spring",
+                                "unused": 'The game reads it only while game flag FLG_FISH_SUBTABLE is set, and nothing in the game sets that flag (no code in RF4S.exe and no event script writes it), so the plain Spring file is the one in use.'},
     "rf3ScheduleID": {
         # 3898 x 12 B NPC schedule SPOTS, archive 15217 (see rf4s_modkit/schedule.py). A slice
         # of rf3Schedule.bin names a spot KIND k; kind k owns records [KIND_PREFIX[k],
@@ -1362,8 +1388,10 @@ def canonical_stem(stem: str) -> str:
 
 def unused_reason(stem: str) -> str:
     """Why the game ignores this table ("" when it is read): the schema's "unused" sentence,
-    set only where the exe was checked to load the table without ever reading its rows."""
-    return FIELD_SCHEMAS.get(canonical_stem(stem), {}).get("unused", "")
+    set only where the exe was checked to load the table without ever reading its rows (or to
+    read it only behind a flag nothing sets). A file's own entry wins over the one it aliases."""
+    own = FIELD_SCHEMAS.get(stem, {}).get("unused")
+    return own if own is not None else FIELD_SCHEMAS.get(canonical_stem(stem), {}).get("unused", "")
 
 
 def ref_kind(stem: str, name: str):

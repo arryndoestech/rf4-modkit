@@ -4734,7 +4734,7 @@ def test_skillcurve():
         from rf4s_modkit import nlcl as _nl
         _t = _nl.NlclTable.load(p)
         try:
-            _t.set_field(5, "xp_to_next", 0x1000000, "rf3ParamSkillExp")
+            _t.set_field(5, "XP to next level", 0x1000000, "rf3ParamSkillExp")
             _rej2 = False
         except _nl.NlclError:
             _rej2 = True
@@ -6861,6 +6861,17 @@ def test_behaviour_edits():
         _check("Fishing_rate_lv schema: bracket 0 = 80/96/110/120 per size class; Spring2 alias",
                (l0["Size class 0"], l0["Size class 1"], l0["Size class 2"], l0["Size class 3"]) == (80, 96, 110, 120)
                and lv.schema("Fishing_rate_lv_Spring2") is not None)
+        lim = t.schema(ff.stem)["limits"]
+        _check("fishing: spawn weights are limited to the game's clamp 0..99999, the size "
+               "class to 0..3, and both tables read a fixed row count (38 / 10)",
+               len(lim) == 22 and lim["Spring"][:2] == (0, 99999) and lim["Size class"][:2] == (0, 3)
+               and t.grow_info(ff.stem)[0] == "fixed:38" and lv.grow_info(fl.stem)[0] == "fixed:10")
+        _check("fishing: the Spring2 twins say the game never uses them (flag 2990 is never "
+               "set); the Spring tables are live",
+               "FLG_FISH_SUBTABLE" in nlcl.unused_reason("Fishing_rate_fish_Spring2")
+               and "FLG_FISH_SUBTABLE" in nlcl.unused_reason("Fishing_rate_lv_Spring2")
+               and not nlcl.unused_reason("Fishing_rate_fish_Spring")
+               and not nlcl.unused_reason("Fishing_rate_lv_Spring"))
     else:
         _skip("fishing schema checks", "no Fishing_rate_*.bin present")
     if sid:
@@ -7127,7 +7138,7 @@ def test_rows_em_structural_skill():
             t = nlcl.NlclTable.load(se)
             _check("rf3ParamSkillExp* schema (alias) + fixed:100 verdict",
                    t.schema("rf3ParamSkillExpFarm") is t.schema("rf3ParamSkillExp") and t.entry_count == 100
-                   and t.row(0, "rf3ParamSkillExpFarm")["xp_to_next"] == skillcurve.parse(se.read_bytes())[0]
+                   and t.row(0, "rf3ParamSkillExpFarm")["XP to next level"] == skillcurve.parse(se.read_bytes())[0]
                    and t.grow_info("rf3ParamSkillExpFarm")[0] == "fixed:100")
         verdicts = {s: (nlcl.FIELD_SCHEMAS.get(s) or {}).get("grow") for s in (
             "rf3ItemList", "rf3ItemEquipmentParam", "rf3PriceTable", "rf3NpcParam", "rf3CropParam",

@@ -6338,7 +6338,7 @@ class App:
             if rk == "level":
                 return f"Lv {i} → {i + 1}"
             if rk == "bracket":
-                return f"size bracket {i}" + (" (smallest)" if i == 0 else "")
+                return f"size bracket {i} · Lv {i + 1}" + (" (smallest)" if i == 0 else "")
             return ""
         name_col = bool(rk) or bool(name_off_typ and name_field not in pick_f)
 
