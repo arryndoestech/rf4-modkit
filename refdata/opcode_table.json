@@ -34969,7 +34969,7 @@
    "side_effects": "",
    "evidence": "RF4S.exe+0x204490: `v2 = !(flags & 0x401000) && g_playerActor && (g_playerActor->control_flags & 0x8000000); *(a2+64) = v2`; RF4S.exe+0x7DC8B: `test [r13+238h], 8000000h; mov g_saveBody_genderIsFrey, r14b; jnz; mov g_saveBody_genderIsFrey, 1`; corpus: 876 uses; bank 1: `BR_Z reg0 == 1` falls through to SetNpcNicknameForPlayer(tag3(1), 185 'Prince') and branches to (tag3(1), 99 'Princess') (rf3TxtHeroNickName.eng), i.e. reg0 = 1 is the male player. In-game test 2026-10-02 (user): IsPlayerMale() with Frey -> reg0 = 0.",
    "alias_of": null,
-   "handler": "Script_VMOp_GetPlayerIsFreyVariant",
+   "handler": "Script_VMOp_IsPlayerMale",
    "handler_rva": "0x204490",
    "shares_handler_with": [],
    "size": [

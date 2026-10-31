@@ -308,7 +308,7 @@
  "306": "Script_VMOp_GetCalendarDay",
  "307": "Script_VMOp_GetCalendarHourMinute",
  "308": "Script_VMOp_GetCalendarFullSnapshot",
- "309": "Script_VMOp_GetPlayerIsFreyVariant",
+ "309": "Script_VMOp_IsPlayerMale",
  "310": "Script_VMOp_IsPlayerModelLest",
  "311": "Script_VMOp_HealPartyHPFull",
  "312": "Script_VMOp_HealPartyHPByShift",

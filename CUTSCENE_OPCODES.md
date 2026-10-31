@@ -4895,8 +4895,8 @@ Args:
   0. char (character/NPC-param id incl. monsters and props (e.g. 269, 27, 324 'Barrel', 331 'Captain'); 254..266 ignored)
      - *(enum: 392 values — use the in-editor picker or the id database)*
   1. key (scene-local handle (100, 101, 200, 300...) used by every later EventActor op)
-  2. x (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre))
-  3. y (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre))
+  2. x (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)) — verified in game
+  3. y (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)) — verified in game
   4. facing
 
 ### `op 154` — SpawnEventActorVariant(char, event_key, x, y, facing, variant)

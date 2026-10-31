@@ -312,7 +312,7 @@ FIELD_SCHEMAS = {
             ("Braking", 20, "s32"),             # how fast it slows down, also after a knockback (100% = normal)
             ("Effect size", 24, "s32"),         # the size of effects shown on it, e.g. the burst when it breaks (100% = normal)
             ("Height", 28, "s32"),              # how tall it is: sets its head height and how wide its hit area is
-            ("Male body", 32, "u16"),           # 1 = uses the male default skeleton
+            ("Male body", 32, "u16"),           # 1 = male: the male default animations (when Skeleton is -1); on the player's body it is the player's gender for the whole game (marriage candidates, gendered lines, voice)
             ("AI script", 34, "u16"),           # monsters: the AI_m file it runs (AI_m<this>.bin); guests 24-47: how likely they visit town
             ("Spawn asleep chance", 36, "u32"),  # chance that it spawns lying asleep (256 = always)
             ("HP", 40, "u32"),

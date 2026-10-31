@@ -179,8 +179,8 @@ _M_OLDBASE = {
     88:  ("StopVoiceId", "audio", "Stop the voice matching an id.", ["voice id"]),
     90:  ("PlayVoicedSound", "audio", "Play a sound effect via a dedicated voice slot.", ["sfx id"]),
     # --- player / actors ---
-    7:   ("IsFrey", "query", "Writes 1 to reg0 when playing as Frey (female protagonist), 0 for "
-         "Lest. The scripts pick gendered lines/animations by branching on reg0 right after.", []),
+    7:   ("IsPlayerMale", "query", "Writes 1 to reg0 when the player is Lest (male), 0 for Frey. "
+         "The scripts pick gendered lines/animations by branching on reg0 right after.", []),
     27:  ("IsPosing", "query", "1 if an actor's scripted pose is active.", ["actor"]),
     91:  ("FreezePlayer", "actor", "Lock or release player input.", ["freeze (0/1)"]),
     92:  ("WarpPlayer", "actor", "Teleport the player to a map tile.", ["x (script units)", "y (script units)"]),
