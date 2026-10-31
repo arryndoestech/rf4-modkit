@@ -275,7 +275,8 @@ FIELD_SCHEMAS = {
         #   +24 -> actor+176: the size of effects spawned on it (WorldObject_OnBreakDropLoot
         #     scales its burst by 1.5x this; attack-timeline op 59 overrides it)
         #   +28 height (head height = size * (+28 >> 2), hit radius +28 >> 1)
-        #   +32 1 = male body (default skeleton 14497 instead of 14255; actor flag 0x8000000)
+        #   +32 gender, 1 = male (default skeleton 14497 instead of 14255; actor flag 0x8000000,
+        #     which on the player's body is the player's gender: Player_IsMale, op 309)
         #   +36 -> stats+224: Companion_AcquireTarget (+0x1E8F30) starts a freshly spawned
         #     monster in its lying-down (asleep) sequence when a random byte is below it
         #   +140 / +142 -> stats+52 / +80: the base hit arc (u16 angle, half width; 16384 = 90
@@ -312,7 +313,7 @@ FIELD_SCHEMAS = {
             ("Braking", 20, "s32"),             # how fast it slows down, also after a knockback (100% = normal)
             ("Effect size", 24, "s32"),         # the size of effects shown on it, e.g. the burst when it breaks (100% = normal)
             ("Height", 28, "s32"),              # how tall it is: sets its head height and how wide its hit area is
-            ("Male body", 32, "u16"),           # 1 = male: the male default animations (when Skeleton is -1); on the player's body it is the player's gender for the whole game (marriage candidates, gendered lines, voice)
+            ("Gender", 32, "u16"),              # the default animations (when Skeleton is -1); on the player's body, the player's gender for the whole game (marriage candidates, gendered lines, voice)
             ("AI script", 34, "u16"),           # monsters: the AI_m file it runs (AI_m<this>.bin); guests 24-47: how likely they visit town
             ("Spawn asleep chance", 36, "u32"),  # chance that it spawns lying asleep (256 = always)
             ("HP", 40, "u32"),
@@ -1310,7 +1311,8 @@ VALUE_NAMES = {
         11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
     "rf3TxtQuest_split3_1": {"client_id": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
     # 388 of the 392 rows hold 0 (char 0 is the player): no other form
-    "rf3NpcParam": {"Transforms into": {0: "(none)"}},
+    "rf3NpcParam": {"Transforms into": {0: "(none)"},
+                    "Gender": {0: "Female", 1: "Male"}},       # the game tests it nonzero
 }
 # What a row index is: "item" / "room" / "skill" / "fish" (rows 0..31 = item 985+row, 32..37 =
 # the rare remap, see the Fishing_rate_fish_Spring notes) / "level" (row L = level L -> L+1).
