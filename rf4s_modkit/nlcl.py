@@ -1380,8 +1380,64 @@ FIXED_FIELDS = {
                                              "Weapon ATK per level", "Spell ATK per level",
                                              "Element damage cut per level")},
                       "RP cost cut per level": 12},
-    "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
-    "rf3ItemStrengthening": {"Stun": 12},
+    "rf3MapMiniPos": {"Scale X": 12, "Scale Y": 12},
+    # every q12 column of rf3ItemStrengthening (strengthening.UNIT == "q12"; selftest compares)
+    "rf3ItemStrengthening": {f: 12 for f in (
+        "Critical chance",
+        "Knockback",
+        "Stun",
+        "Poison chance",
+        "Seal chance",
+        "Paralysis chance",
+        "Sleep chance",
+        "Fatigue chance",
+        "Cold chance",
+        "Faint chance",
+        "HP drain",
+        "Will resist",
+        "Critical resist",
+        "Knockback resist",
+        "Poison resist",
+        "Seal resist",
+        "Paralysis resist",
+        "Sleep resist",
+        "Fatigue resist",
+        "Cold resist",
+        "Faint resist",
+        "Drain resist",
+        "Reach",
+        "HP healed (share of max)",
+        "RP healed (share of max)",
+        "Fed: max HP %",
+        "Fed: max RP %",
+        "Fed: STR %",
+        "Fed: INT %",
+        "Fed: VIT %",
+        "Fed: critical chance",
+        "Fed: knockback resist",
+        "Fed: critical resist",
+        "Fed: poison resist",
+        "Fed: seal resist",
+        "Fed: paralysis resist",
+        "Fed: sleep resist",
+        "Fed: fatigue resist",
+        "Fed: cold resist",
+        "Fed: faint resist",
+        "Fed: poison chance",
+        "Fed: seal chance",
+        "Fed: paralysis chance",
+        "Fed: sleep chance",
+        "Fed: fatigue chance",
+        "Fed: cold chance",
+        "Fed: faint chance",
+        "Fire resist",
+        "Water resist",
+        "Earth resist",
+        "Wind resist",
+        "Light resist",
+        "Dark resist",
+        "Love resist",
+    )},
     "rf3ItemEquipmentParam": {f: 12 for f in (
         ["Critical chance", "Knockback", "Stun", "HP drain", "Will resist", "Critical resist",
          "Knockback resist", "HP drain resist", "Tool charge", "Reach", "Swing arc"]
@@ -1496,7 +1552,10 @@ FLAG_FIELDS = {
             0x1000000: "Art of Magic: halves non-elemental damage",
             0x2000000: "Earth Pendant: stronger recovery items",
             0x4000000: "Strange Pendant: no DEF / MDF"}},
-    "rf3ItemStrengthening": {"Effects": {}},
+    "rf3ItemStrengthening": {"Effects": {
+        **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
+        **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},
+        0x2000: "Level up", 0x4000: "Not food (spoils a dish)"}},
     # rf3ScheduleID.flags: see rf4s_modkit/schedule.py (copied to the NPC's day plan +5)
     "rf3ItemList": {"Flags": {
         0x1: "Can't be thrown away", 0x2: "Unique key item (tracked when given away; never bait)",
@@ -1658,6 +1717,10 @@ def schema_notes(stem: str) -> tuple[str, dict]:
             else:
                 last = None
             k += 1
+    if key == "rf3ItemStrengthening":           # its field notes live in the strengthening module
+        from . import strengthening
+        for f, doc in strengthening.DOC.items():
+            notes.setdefault(f, doc[:1].upper() + doc[1:] + ".")
     sch = FIELD_SCHEMAS.get(key) or PREFIX_SCHEMAS.get(key) or {}
     for f, lim in (sch.get("limits") or {}).items():
         lo, hi, why = lim

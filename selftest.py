@@ -1327,16 +1327,25 @@ def test_bin_editors():
             by_name = nlcl.NlclTable(doc.cur_data).get(1, 4, "u16")
             pc.set(1, "Ingredient 2", "(none) (0)")
             res["recipe"] = shown + (by_name, doc.cur_data == d)
-        # strengthening: set a field of the selected row
+        # strengthening: the standard table (all 74 columns), Effects as tick boxes, tier rows
+        # named, the nonzero / food filters, and the selected row's sheet under the table
         d = (B / "rf3ItemStrengthening.bin").read_bytes()
         app._show("rf3ItemStrengthening.bin", d); doc = app._doc
-        tv = doc._str["tree"]
+        tv = doc._param_tree
         first = tv.get_children()[0]
-        tv.selection_set(first); root.update()
-        doc._str["cells"].set(first, "ATK", "123")
-        doc._str["fields"].set("HP healed", "value", "45")
+        doc._param_select(int(first)); root.update()
+        doc._param_cells.set(first, "ATK", "123")
+        doc._param_cells.set(first, "Stun", "25")
         row = strengthening.StrengtheningTable(doc.cur_data).row(int(first))
-        res["str"] = (row["ATK"], row["HP healed"])
+        win = doc._param_open_flags(83, "Effects", "s32")      # Withered Grass: inflicts poison
+        ticked = sorted(m for m, v in win.boxes.items() if v.get())
+        named = all(win.boxes[m] for m in (0x1, 0x40, 0x4000))
+        win.destroy()
+        doc._param_select(1125); root.update()
+        sheet = doc._param_sheet.get("1.0", "end")
+        res["str"] = (row["ATK"], row["Stun"], ticked[:1], named, tv.set("1125", "name"),
+                      "ATK" in sheet and "quality tier" in sheet, "1107" not in tv.get_children(),
+                      len(tv["columns"]) >= 76)
         # gift categories: add then remove an item
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
@@ -1389,8 +1398,12 @@ def test_bin_editors():
         _check("rf3Recipe*: item fields show item names (Yarn <- Furs), the picker shows "
                "'Furs (1088)', a typed name sets the id, (none) clears it (file byte-exact after)",
                res["recipe"] == ("Yarn", "Furs", "", "Furs (1088)", False, 1083, True), res["recipe"])
-    _check("rf3ItemStrengthening: a typed table cell and a typed value in the selected item's field "
-           "list write those fields", res.get("str") == (123, 45), res.get("str"))
+    _check("rf3ItemStrengthening in the standard table: typed cells write (ATK 123, Stun 25% = 1024), "
+           "Effects opens the tick boxes (Withered Grass: Inflict poison ticked, Cure / Not food "
+           "named), tier row 1125 is named and its sheet shows its bonuses, all-zero rows are "
+           "hidden by default, all 74 fields are columns",
+           res.get("str") == (123, 1024, [0x40], True, "quality tier >= 200, ATK family", True,
+                              True, True), res.get("str"))
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
            "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
 
@@ -4816,8 +4829,12 @@ def test_strengthening():
     t.set(887, "ATK", 500)
     t2 = strengthening.StrengtheningTable(t.build())
     _check("strengthening edit round-trip", t2.row(887)["ATK"] == 500 and t2.row(887)["MAT"] == 95)
-    _check("strengthening nlcl schema agrees with the module",
-           [f[0] for f in nlcl.FIELD_SCHEMAS["rf3ItemStrengthening"]["fields"]] == strengthening.NAMES)
+    _check("strengthening nlcl schema agrees with the module (names, percentage columns = the "
+           "q12 fields, a note for every column)",
+           [f[0] for f in nlcl.FIELD_SCHEMAS["rf3ItemStrengthening"]["fields"]] == strengthening.NAMES
+           and set(nlcl.FIXED_FIELDS["rf3ItemStrengthening"]) == {n for n in strengthening.NAMES
+                                                                   if strengthening.UNIT[n] == "q12"}
+           and all(nlcl.schema_notes("rf3ItemStrengthening")[1].get(n) for n in strengthening.NAMES))
 
 
 def test_sound_table():
@@ -11971,7 +11988,7 @@ _TAB_VIEWERS = {
     "res": "ANIM_DUNG_A02.model", "rf4m": "MAP_CITY_00.rf4m", "route": "rf3route.bin",
     "route_result": "rf3RouteResult.bin", "schedule": "rf3Schedule.bin",
     "search_items": "SI_CITY_00.bin", "skillcurve": "rf3ParamSkillExp.bin",
-    "strengthening": "rf3ItemStrengthening.bin", "strings": "Localization-de.strings",
+    "strings": "Localization-de.strings",
     "text": "", "textdb": "rf3mc.eng", "texture": "confetti.texture",
 }
 

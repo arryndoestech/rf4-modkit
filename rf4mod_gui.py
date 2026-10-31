@@ -2248,8 +2248,6 @@ class App:
                 handler = self._view_schedule
             elif base == "rf3cropparam.bin":
                 handler = self._view_crop
-            elif base == "rf3itemstrengthening.bin":
-                handler = self._view_strengthening
             elif base == "rf3txtquest_split3_1.bin":
                 handler = self._view_quest
             # last-resort image fallback: a known image extension Pillow can open
@@ -4737,156 +4735,6 @@ class App:
                           drag=chart_drag, release=chart_release)
         refresh()
 
-    def _view_strengthening(self, name, data):
-        """rf3ItemStrengthening.bin — forge material rows / dish ingredient bonuses / the craft
-        status word (GUI twin of `rf4mod str`). Grid of the fields that matter most, a filter
-        for the NON-FOOD marker, and the full decoded row for the selection."""
-        doc = self._doc
-        from rf4s_modkit import strengthening
-        t = strengthening.StrengtheningTable(data)
-        items = _load_item_names()
-        names = {int(k): v for k, v in items.items()}
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Upgrade and food bonuses — {len(t)} rows (rows 1108-1149 are the "
-                            "level / quality tiers)").pack(side="left", padx=6)
-        ttk.Label(bar, text="Search #/name:").pack(side="left")
-        sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
-        only_nz = tk.BooleanVar(value=True)
-        ttk.Checkbutton(bar, text="nonzero only", variable=only_nz).pack(side="left", padx=6)
-        flagv = tk.StringVar(value="all")
-        ttk.Label(bar, text="marker:").pack(side="left")
-        ttk.Combobox(bar, textvariable=flagv, values=("all", "nonfood", "food"), width=8,
-                     state="readonly").pack(side="left", padx=2)
-
-        def export_csv():
-            f = filedialog.asksaveasfilename(defaultextension=".csv",
-                initialfile="rf3ItemStrengthening.csv",
-                filetypes=[("CSV", "*.csv"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_text(t.to_csv(names, shown=True), encoding="utf-8")
-                self.status.config(text=f"Exported {len(t)} rows → {f}")
-        ttk.Button(bar, text="Export CSV…", command=export_csv).pack(side="right", padx=4)
-
-        show = ["Difficulty", "ATK", "MAT", "DEF", "MDF", "STR", "INT", "VIT", "Reach",
-                "HP healed", "RP healed", "Effects"]
-        cols = ["#", "name"] + show + ["procs", "resists", "flags"]
-        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
-        tv = ttk.Treeview(top, columns=cols, show="headings", height=14)
-        widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "Effects": 70}
-        for c in cols:
-            tv.heading(c, text=c); tv.column(c, width=widths.get(c, 52), anchor="w")
-        _table_scrollbars(top, tv)
-
-        def fill(*_):
-            tv.delete(*tv.get_children())
-            q = sv.get().lower().strip(); shown = 0
-            for r in t.rows():
-                if flagv.get() == "nonfood" and not r.is_non_food:
-                    continue
-                if flagv.get() == "food" and (r.is_non_food or r.is_tier_row):
-                    continue
-                if only_nz.get() and not r.nonzero():
-                    continue
-                nm = t.label(r.id, names)
-                if q and q not in str(r.id) and q not in nm.lower():
-                    continue
-                procs = ", ".join(f"{n[5:]} {v * 100 // 4096}%" for n, v in r.nonzero("attack_proc"))
-                res = ", ".join(f"{n[4:]} {v * 100 // 4096}%" for n, v in r.nonzero("resist"))
-                vals = [r.id, nm] + [(("0x%X" % r[c]) if c == "Effects" else r[c]) for c in show]
-                vals += [procs, res, "; ".join(r.status_flags())]
-                tv.insert("", "end", iid=str(r.id), values=vals); shown += 1
-                if shown >= _max_rows():
-                    break
-        sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
-        fill()
-
-        # the selected item: every field, grouped by what it does, with its meaning; the
-        # notes line holds what the numbers don't say (status word, id-keyed behaviour)
-        low = ttk.Frame(doc.content)
-        low.pack(fill="both", padx=6, pady=4)
-        head = ttk.Frame(low); head.pack(fill="x")
-        sel_lbl = ttk.Label(head, font=("Segoe UI", 9, "bold"),
-                            text="Select a row; click a value and type to change it.")
-        sel_lbl.pack(side="left")
-        fields_nz = tk.BooleanVar(value=False)
-        ttk.Checkbutton(head, text="nonzero fields only", variable=fields_nz,
-                        command=lambda: fill_fields()).pack(side="right")
-        notes_lbl = ttk.Label(low, foreground="#555", justify="left")
-        notes_lbl.pack(fill="x")
-        notes_lbl.bind("<Configure>", lambda e: notes_lbl.config(wraplength=max(200, e.width - 8)))
-        pf = ttk.Frame(low); pf.pack(fill="both", expand=True)
-        fv = ttk.Treeview(pf, columns=("value", "meaning"), show="tree headings", height=11,
-                          selectmode="browse")
-        fv.heading("#0", text="field"); fv.column("#0", width=230)
-        fv.heading("value", text="value"); fv.column("value", width=130)
-        fv.heading("meaning", text="meaning"); fv.column("meaning", width=620)
-        _table_scrollbars(pf, fv)
-        cur = {"i": None}
-        history = []
-
-        def shown(i, fn):
-            v = t.row(i)[fn]
-            return ("0x%X" % v) if fn == "Effects" else str(v)
-
-        def fill_fields():
-            keep = fv.focus()
-            fv.delete(*fv.get_children())
-            i = cur["i"]
-            if i is None:
-                return
-            r = t.row(i)
-            for g in strengthening.GROUPS:
-                fns = [fn for fn in strengthening.NAMES if strengthening.GROUP[fn] == g
-                       and (r[fn] or not fields_nz.get())]
-                if not fns:
-                    continue
-                gid = fv.insert("", "end", iid="g:" + g, text=strengthening.GROUP_TITLES[g],
-                                open=g != "unused")
-                for fn in fns:
-                    fv.insert(gid, "end", iid=fn, text=fn,
-                              values=(strengthening.value_text(fn, r[fn]), strengthening.DOC[fn]))
-            if keep and fv.exists(keep):
-                fv.selection_set(keep); fv.focus(keep); fv.see(keep)
-
-        def on_select(*_):
-            sel = tv.selection()
-            if not sel:
-                return
-            cur["i"] = int(sel[0])
-            sel_lbl.config(text=f"#{cur['i']} {t.label(cur['i'], names)}")
-            notes_lbl.config(text="   ·   ".join(t.notes(cur["i"])))
-            fill_fields()
-        tv.bind("<<TreeviewSelect>>", on_select)
-
-        def put(i, fn, text):
-            i = int(i)
-            before = t.build()
-            t.set(i, fn, int(text.strip(), 0))
-            if t.build() != before:
-                history.append(before)
-            doc.cur_data = t.build()
-            fill()
-            if tv.exists(str(i)):
-                tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
-            on_select()
-            self.status.config(text=f"Item {i}: {fn} = {text.strip()} — Save (Ctrl+S) to write")
-
-        def undo(*_):
-            if history:
-                t.t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
-                doc.cur_data = t.build()
-                fill(); on_select()
-                self.status.config(text="Undone")
-        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
-
-        cells = CellEdit(tv, {fn: {"get": lambda row, fn=fn: shown(int(row), fn),
-                                   "put": lambda row, text, fn=fn: put(row, fn, text)} for fn in show})
-        fcells = CellEdit(fv, {"value": {"get": lambda fn: shown(cur["i"], fn),
-                                         "put": lambda fn, text: put(cur["i"], fn, text),
-                                         "can": lambda fn: cur["i"] is not None and fn in strengthening.INDEX}},
-                          sort=False)
-        doc._str = dict(tree=tv, cells=cells, fields=fcells, undo=undo)       # (selftest)
-
     def _view_gifts(self, name, data):
         """rf3PresentNpc*.bin -- a villager's gift preferences (loved / liked / disliked lists).
         Edited in the table: the tier cell moves an entry (neutral = take it off the lists,
@@ -6331,6 +6179,8 @@ class App:
         def row_name(i):
             if name_off_typ and name_field not in pick_f:
                 return names_of("item").get(t.get(i, *name_off_typ), "")
+            if strength and i >= strengthening.ITEM_ROWS:
+                return strengthening.tier_row_name(i) or "(tier row)"
             if rk in ("item", "room", "skill", "char"):
                 return names_of(rk).get(i, "")
             if rk == "fish":
@@ -6358,6 +6208,9 @@ class App:
             def pre_vals(i):
                 kr = schedule.kind_of_record(i)
                 return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else ""]
+        strength = stem == "rf3ItemStrengthening"   # forge / dish bonuses: filters + a sheet
+        if strength:
+            from rf4s_modkit import strengthening
         monsters = stem == "rf3NpcParam"
         if monsters:                                # what the id means + the stats it ends up with
             from rf4s_modkit import monster
@@ -6381,6 +6234,17 @@ class App:
         if unused:
             ttk.Checkbutton(bar, text=f"Show unused columns ({len(unused)})", variable=show_unused,
                             command=lambda: set_display()).pack(side="left", padx=8)
+        only_nz, marker = tk.BooleanVar(value=True), tk.StringVar(value="all")
+        if strength:
+            ttk.Checkbutton(bar, text="nonzero rows only", variable=only_nz,
+                            command=lambda: fill()).pack(side="left", padx=6)
+            ttk.Label(bar, text="kind:").pack(side="left")
+            mk = ttk.Combobox(bar, textvariable=marker, values=("all", "food", "not food"), width=9,
+                              state="readonly")
+            mk.pack(side="left", padx=2)
+            mk.bind("<<ComboboxSelected>>", lambda _e: fill())
+            Tip(mk, "food = can go into a dish; not food = the Not food bit of Effects is set "
+                    "(spoils a dish). Tier rows count as neither.")
         if about or notes:
             ttk.Button(bar, text="About this table…", command=lambda: show_about()).pack(side="right", padx=4)
         if nlcl.unused_reason(stem):
@@ -6414,6 +6278,10 @@ class App:
         if monsters:
             base_text["t"] += (" ATK / DEF / MAT / MDF = the bonus + STR / VIT/2 / INT / VIT/2, before "
                                "level growth. The selected one's sheet is under the table.")
+        if strength:
+            base_text["t"] += (" Rows 1108-1149 are the level / quality tiers equipment gets. The "
+                               "selected row's sheet (its bonuses by use, and what the game does with "
+                               "that item id) is under the table.")
         if spots:
             base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here; a "
                               "kind with several spots picks one of them each day by weight. Type "
@@ -6490,6 +6358,14 @@ class App:
             kq = re.fullmatch(r"kind\s*(\d+)", q) if spots else None
             shown = 0
             for i in range(t.entry_count):
+                if strength:
+                    eff = t.get(i, 4 * 38, "s32")
+                    if only_nz.get() and not any(t.record_dwords(i)):
+                        continue
+                    if marker.get() == "food" and (eff & strengthening.NON_FOOD or i >= strengthening.ITEM_ROWS):
+                        continue
+                    if marker.get() == "not food" and not eff & strengthening.NON_FOOD:
+                        continue
                 vals = [i] + ([row_name(i)] if name_col else []) + ([used.get(i, "")] if used_col else []) \
                     + (pre_vals(i) if pre_cols else []) \
                     + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
@@ -6582,7 +6458,7 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
-            if monsters:
+            if monsters or strength:
                 show_sheet(i)
             if used_col:
                 from rf4s_modkit import magicnames
@@ -6723,17 +6599,23 @@ class App:
         # shrinks the table and never squeezes the buttons away
         ed.pack_configure(side="bottom", before=top)
         info.pack_configure(side="bottom", before=top)
-        if monsters:
-            # the selected character's decoded sheet (monster.render) under the table
+        if monsters or strength:
+            # the selected row's decoded sheet under the table: a character's (monster.render) or
+            # a strengthening row's bonuses by use + the item-id behaviour (strengthening.render)
             sheet = tk.Text(doc.content, wrap="word", height=9, font=("Consolas", 9))
             sheet.pack(side="bottom", fill="x", padx=6, pady=(2, 0), before=top)
             sheet.insert("end", "Select a row to see its sheet.")
             sheet.config(state="disabled")
-            species, item_names = monster.load_species(), _load_item_names()
+            item_names = _load_item_names()
+            species = monster.load_species() if monsters else None
 
             def show_sheet(i):
                 sheet.config(state="normal"); sheet.delete("1.0", "end")
-                sheet.insert("end", monster.render(t, i, species, item_names))
+                if monsters:
+                    sheet.insert("end", monster.render(t, i, species, item_names))
+                else:
+                    st = strengthening.StrengtheningTable(t.build())
+                    sheet.insert("end", st.render(i, item_names))
                 sheet.config(state="disabled")
             doc._param_sheet = sheet                                          # (selftest)
 
