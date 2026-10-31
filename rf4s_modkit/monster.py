@@ -86,13 +86,18 @@ def ai_file(ai_id: int) -> str:
 # reference data (optional; empty if not found so the module runs standalone)
 # --------------------------------------------------------------------------- #
 def load_species(path=None) -> dict:
-    """char_id(int) -> species dict {name, tameable, region, boss, tier, ...}."""
+    """char_id(int) -> species dict {name, region, boss, tier, ...}. By default the names are
+    the game's own (rf3TxtNpc, gamenames) for every character id, over the reference list."""
     from .refdata import refdata_path as _rp
     p = pathlib.Path(path) if path else _rp("monster_species.json")
-    if not p.is_file():
-        return {}
-    raw = json.loads(p.read_text(encoding="utf-8"))
-    return {int(k): v for k, v in raw.items()}
+    out = ({int(k): v for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
+           if p.is_file() else {})
+    if not path:
+        from . import gamenames
+        for cid, name in gamenames.table("characters").items():
+            if name:
+                out[cid] = {**out.get(cid, {}), "name": name}
+    return out
 
 
 def load_item_names(path=None) -> dict:
@@ -140,7 +145,7 @@ def sheet(table: nlcl.NlclTable, char_id: int,
         "id": char_id,
         "name": species_name(char_id, species),
         "semantics": id_semantics(char_id),
-        "tameable": bool(species.get(char_id, {}).get("tameable")) if species else None,
+        "tameable": row["Tame chance"] > 0,     # 0 = MonsterTame_RollAttemptWithItem refuses
         "hp": row["HP"], "atk": tot["atk"], "def": tot["def"],
         "mat": tot["mat"], "mdf": tot["mdf"], "kill_xp": row["Kill XP"],
         "str": row["STR"], "int": row["INT"], "vit": row["VIT"],

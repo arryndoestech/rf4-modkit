@@ -725,8 +725,12 @@ class CellEdit:
             tv.xview_moveto(min(left, right - (hi - lo)) / total)
 
     def _settle(self):
-        """Repaint now, so the table and the outline change in the same frame."""
+        """Move the outline and repaint the whole table now. The table normally repaints the
+        spot an edge leaves only when Windows reports it uncovered, which can come late (or,
+        on some machines, not at all), leaving the old box on screen next to the new one; a
+        configure() makes ttk redraw the table in full, over any such leftover."""
         self.redraw()
+        self.tv.configure(takefocus=self.tv.cget("takefocus"))
         self.tv.update_idletasks()
 
     def _selected(self, _e=None):
@@ -745,7 +749,7 @@ class CellEdit:
         row, col = self.tv.identify_row(e.y), self._col_at(e.x)
         if row and col in self.cols:
             self.cur = (row, col)
-            self.redraw()
+            self._settle()
 
     def move(self, d):
         """Move the cell cursor d editable columns sideways (it stays inside the row)."""

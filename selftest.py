@@ -12041,6 +12041,15 @@ def test_viewer_tabs():
                    right_ok and back and bb and all(m for m, _x in edges)
                    and min(x for _m, x in edges) >= bb[0] - 1,
                    (bb, tv.xview(), edges[:2], back))
+            d._param_select(1)
+            root.update_idletasks()
+            herbert = d._param_sheet.get("1.0", "1.end")
+            d._param_select(48)
+            root.update_idletasks()
+            _check("the sheet names a villager the way the game does (row 1: not ???) and a "
+                   "monster with a tame chance as tameable",
+                   "???" not in herbert and herbert.split()[1] == tv.item("1", "values")[1]
+                   and "tameable" in d._param_sheet.get("1.0", "1.end"), herbert)
             _check("rf3NpcParam shows as a table with name / kind / total columns and the "
                    "selected character's sheet below; a drop id past 2047 is refused",
                    cols[:7] == ["#", "name", "kind", "ATK", "DEF", "MAT", "MDF"]
