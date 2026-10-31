@@ -370,7 +370,7 @@ FIELD_SCHEMAS = {
             ("unused 214", 214, "u16"),
             ("HP drain", 216, "s16"),           # share of the damage its hits heal it by
             ("unused 218", 218, "u16"),
-            ("Tame chance", 220, "u16"),        # 0 = cannot be tamed; the taming roll starts from twice this
+            ("Tame chance", 220, "u16"),        # 0 = cannot be tamed; otherwise each fed item starts its roll at twice this out of 128 (bosses only need it nonzero: their favourite food decides)
             ("unused 222", 222, "u16"),
             ("Movement class", 224, "u32"),     # 0-3: which movement settings it uses
             ("Drop 1", 228, "u16"),             # an item it can drop when defeated
