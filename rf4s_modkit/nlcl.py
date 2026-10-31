@@ -121,16 +121,23 @@ FIELD_SCHEMAS = {
         # Shipped: the upper 16 bits of every dword are 0; rows 20-24 have no items.
         "fields": [
             ("Rock kind", 0, "u8"),           # the rock's gatherable kind (26..37): its sprite and name; only the low 7 bits count
+            ("unused 1", 1, "u8"), ("unused 2", 2, "u16"),
             ("Break chance", 4, "s16"),       # chance per hit that the rock breaks, with the first hammer (256 = 100%); any better hammer halves it, and Mining lowers it further
+            ("unused 6", 6, "u16"),
             ("Scrap chance", 8, "s16"),       # chance per drop that it is Scrap Metal instead, with the first hammer (256 = 100%); any better hammer halves it, and Mining lowers it further
+            ("unused 10", 10, "u16"),
             ("Item 1 weight", 12, "u16"),     # how often Item 1 drops, relative to the other two weights
+            ("unused 14", 14, "u16"),
             ("Item 2 weight", 16, "u16"),     # how often Item 2 drops, relative to the other two weights
+            ("unused 18", 18, "u16"),
             ("Item 3 weight", 20, "u16"),     # how often Item 3 drops, relative to the other two weights
+            ("unused 22", 22, "u16"),
             ("Item 1", 24, "u16"),
             ("Item 2", 26, "u16"),
             ("Item 3", 28, "u16"),
             ("Rare item", 30, "u16"),         # replaces the drop now and then once Mining is 50+: about 3% a drop with the Platinum Hammer (0.5% with the Golden, none below), rising to 6% at Mining 90, 7% at 150, 8% at 300 and 10% at 500
         ],
+        "limits": {"Rock kind": (0, 127, "only the low 7 bits are read")},
     },
     "rf3TxtQuest_split3_1": {
         # 165 x 4-byte QUEST/REQUEST DATABASE = archive 16342 (g_questDatabase = archive_data+28).
@@ -990,16 +997,17 @@ FIELD_SCHEMAS = {
         #     (+24, +28 as u16). An amount of 0 gives nothing.
         "fields": [
             ("RP cost (share of max RP)", 0, "u32"),  # when set, the RP cost is this share of the max RP instead, if that is more than the flat cost
-            ("RP cost", 4, "u16"),            # flat RP cost (read as the whole 4 bytes when the share above is set, so the 2 bytes after it must stay 0)
+            ("RP cost", 4, "u32"),            # flat RP cost (one reader takes 2 bytes, the other all 4, so 65535 at most)
             ("Skill 1 XP", 8, "s32"),         # XP given to skill 1 each time the action is used
             ("Skill 1", 12, "s32"),           # the action's skill: gets the XP above, and its "RP cost cut per level" lowers the cost
             ("Skill 2 XP", 16, "s32"),        # XP given to skill 2 each time the action is used
-            ("Skill 2", 20, "u16"),
+            ("Skill 2", 20, "u16"), ("unused 22", 22, "u16"),
             ("Skill 3 XP", 24, "s32"),        # XP given to skill 3 each time the action is used
-            ("Skill 3", 28, "u16"),
+            ("Skill 3", 28, "u16"), ("unused 30", 30, "u16"),
         ],
-        "limits": {f: (0, 39, "indexes the 40-row rf3ParamSkill table and the player's 40 "
-                              "skill slots") for f in ("Skill 1", "Skill 2", "Skill 3")},
+        "limits": {**{f: (0, 39, "indexes the 40-row rf3ParamSkill table and the player's 40 "
+                                 "skill slots") for f in ("Skill 1", "Skill 2", "Skill 3")},
+                   "RP cost": (0, 0xFFFF, "one reader takes only its low 2 bytes")},
     },
     "rf3ParamSkill": {
         # 40 x 40-byte per-SKILL table = archive 14818, row = skill id 0..39. Every field is a
