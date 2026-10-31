@@ -1017,7 +1017,7 @@ FLAG_FIELDS = {
     "rf3ParamMagic": {"flags": {
         0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
         0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
-        0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun",
+        0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun (not reduced by stun resist; staggers monsters that never flinch)",
         0x2000: "Turnip-and-stars hit effect", 0x8000: "Grab (Marionetta)",
         0x10000: "Water hit sound", 0x200000: "Always 1 damage", 0x400000: "Half element resist",
         0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
@@ -1036,7 +1036,7 @@ FLAG_FIELDS = {
         "Weapon flags": {**{m: n for m, n in ({
             0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
             0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
-            0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun",
+            0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun (not reduced by stun resist; staggers monsters that never flinch)",
             0x2000: "Turnip-and-stars hit effect", 0x8000: "Grab (Marionetta)",
             0x10000: "Water hit sound", 0x200000: "Always 1 damage", 0x400000: "Half element resist",
             0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
@@ -1247,7 +1247,11 @@ def apply_flag_edit(current: int, text: str, names=None, typ: str = "u32") -> in
     t = str(text).strip()
     if not t or t[0] not in "+-":
         return parse_value(t, typ)
-    by_name = {_flag_key(n): m for m, n in (names or {}).items()}
+    by_name = {}
+    for m, n in (names or {}).items():
+        # also the short form before an explanation: "Full stun", "Water Shoes"
+        for short in (n, re.split(r"\s*\(|:", n, maxsplit=1)[0]):
+            by_name.setdefault(_flag_key(short), m)
     v = int(current)
     for part in [p.strip() for p in t.split(",") if p.strip()]:
         sign, key = part[0], part[1:].strip()
