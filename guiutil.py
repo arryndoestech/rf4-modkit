@@ -4,6 +4,7 @@ entries, a scrollable column, and destroy-safe after() scheduling."""
 from __future__ import annotations
 
 import re
+import sys
 import tkinter as tk
 from tkinter import ttk
 
@@ -666,7 +667,8 @@ class CellEdit:
         def cmd(*a):
             if orig:
                 self.tv.tk.call(*orig, *a)
-            self.redraw()
+            if self.redraw():                   # a scroll moved the outline: repaint after it
+                self.tv.after_idle(self._repaint)
         self.tv.configure(**{opt: cmd})
 
     def _shown(self):
@@ -685,9 +687,9 @@ class CellEdit:
             return None
 
     def redraw(self):
-        """Put the outline on the cursor's cell. The four edges are moved, not taken down and put
-        up again: an unmapped edge leaves its old pixels on screen until the table repaints that
-        spot, which showed as a second, lagging box while the cursor moved."""
+        """Put the outline on the cursor's cell; True when it moved (or went away). The four
+        edges are moved, not taken down and put up again. Where an edge was, the table has to
+        repaint itself -- see _repaint()."""
         bb = ""
         if self.cur is not None and self.box is None:
             iid, col = self.cur
@@ -695,14 +697,33 @@ class CellEdit:
                 bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
             except tk.TclError:
                 bb = ""
+        geo = tuple(bb) if bb else None
+        if geo == getattr(self, "_geo", None):
+            return False
+        self._geo = geo
         if not bb:
             for f in self._outline:
                 f.place_forget()
-            return
+            return True
         x, y, w, h = bb
         for f, (fx, fy, fw, fh) in zip(self._outline, ((x, y, w, 2), (x, y + h - 2, w, 2),
                                                        (x, y, 2, h), (x + w - 2, y, 2, h))):
             f.place(x=fx, y=fy, width=fw, height=fh)
+        return True
+
+    def _repaint(self):
+        """Redraw the whole table over the spots the outline's edges left. Windows reports such
+        a spot uncovered late or not at all on some machines, which left old edges on screen;
+        so ask for it twice: a ttk configure() redraws the table, and RedrawWindow has Windows
+        invalidate it (the edges themselves are child windows and stay clipped out)."""
+        try:
+            self.tv.configure(takefocus=self.tv.cget("takefocus"))
+            if sys.platform == "win32":
+                import ctypes
+                # RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN
+                ctypes.windll.user32.RedrawWindow(self.tv.winfo_id(), None, None, 0x1 | 0x4 | 0x80)
+        except (tk.TclError, OSError, AttributeError):
+            pass
 
     def see_column(self, col):
         """Scroll the table sideways just enough that column `col` is in view (Treeview.see only
@@ -725,13 +746,13 @@ class CellEdit:
             tv.xview_moveto(min(left, right - (hi - lo)) / total)
 
     def _settle(self):
-        """Move the outline and repaint the whole table now. The table normally repaints the
-        spot an edge leaves only when Windows reports it uncovered, which can come late (or,
-        on some machines, not at all), leaving the old box on screen next to the new one; a
-        configure() makes ttk redraw the table in full, over any such leftover."""
-        self.redraw()
-        self.tv.configure(takefocus=self.tv.cget("takefocus"))
-        self.tv.update_idletasks()
+        """Move the outline, let the move happen, then repaint the table. In that order: a table
+        redraw already queued (by the row change or a scroll) would otherwise run before the
+        edges move and leave their old spots unpainted -- the second box, or two stray bars."""
+        if self.redraw():
+            self.tv.update_idletasks()          # the edges are really moved now
+            self._repaint()
+            self.tv.update_idletasks()
 
     def _selected(self, _e=None):
         f = self.tv.focus()
@@ -741,7 +762,7 @@ class CellEdit:
         col = self.cur[1] if self.cur and self.cur[1] in cols else cols[0]
         self.cur = (f, col)
         self._settle()                          # move the outline with the row, not a beat later
-        self.tv.after_idle(self.redraw)         # and again once a scroll has settled
+        self.tv.after_idle(self._settle)        # and again once a scroll has settled
 
     def _click(self, e):
         if self.tv.identify_region(e.x, e.y) != "cell":
