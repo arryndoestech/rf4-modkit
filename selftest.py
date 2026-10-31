@@ -1083,10 +1083,15 @@ def test_fixed_point_fields():
     rf4 = importlib.import_module("rf4mod")
     t = nlcl.NlclTable(src.read_bytes())
     rf4._param_assign(t, 0, "dmg_mult=125%", "rf3ParamMagic")
-    rf4._param_assign(t, 0, "mat_scalar=8192", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "mat_scalar=200", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "atk_scalar=0x1800", "rf3ParamMagic")
     row = t.row(0, "rf3ParamMagic")
-    _check("param set: dmg_mult=125% stores 5120, a whole number is stored as is",
-           row["dmg_mult"] == 5120 and row["mat_scalar"] == 8192, (row["dmg_mult"], row["mat_scalar"]))
+    _check("param set: in a percentage field 125% and a plain 200 are percentages (5120, 8192); "
+           "hex is the stored value (0x1800)",
+           (row["dmg_mult"], row["mat_scalar"], row["atk_scalar"]) == (5120, 8192, 0x1800)
+           and nlcl.parse_value("200", "s32", 12) == 8192 and nlcl.parse_value("12", "u32", 8) == 31
+           and nlcl.parse_value("20", "u32", nlcl.PERMILLE) == 200,
+           (row["dmg_mult"], row["mat_scalar"], row["atk_scalar"]))
 
 
 def test_flag_fields():

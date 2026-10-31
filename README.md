@@ -1219,7 +1219,7 @@ python rf4mod.py param info rf3ItemList.bin            # item id → sell price 
 python rf4mod.py param set rf3ItemList.bin 29 sell_price=9999 -o new.bin   # Turnip → 9999G
 python rf4mod.py param info rf3ItemEquipmentParam.bin  # weapon/armor ATK/MAT/DEF/MDF/STR/INT/VIT (+ boots word, accessory bit)
 python rf4mod.py param set rf3ItemEquipmentParam.bin 328 atk=999 -o w.bin  # Broadsword ATK→999
-python rf4mod.py param set rf3ParamMagic.bin 0 dmg_mult=150% -o m.bin    # a fixed-point field takes a percentage
+python rf4mod.py param set rf3ParamMagic.bin 0 dmg_mult=150 -o m.bin    # a percentage field takes a percentage (150 or 150%)
 python rf4mod.py param info rf3CropParam.bin           # crop stage-days + harvest/seed item
 python rf4mod.py param info rf3RecipeWeaponA.bin       # result + ingredients
 python rf4mod.py param dump rf3UseItemParam.bin -o use.csv             # consumable HP/RP effects
@@ -1289,13 +1289,13 @@ python rf4mod.py gen set GenA01.bin 0 1 --spawn 0=50 -o out.bin   # spawn Orc Ar
 python rf4mod.py monster show Orc              # full sheet: stats, drops(names), elements%, AI file
 python rf4mod.py monster list --range 48-80    # roster (id, name, HP, ATK, kind)
 python rf4mod.py monster free                  # cut ids usable for a data-only NEW monster
-python rf4mod.py monster set 49 --set HP=2000 "ATK bonus=150" "Fire resist=4096" -o out.bin  # buff High Orc
+python rf4mod.py monster set 49 --set HP=2000 "ATK bonus=150" "Fire resist=100" -o out.bin  # buff High Orc
 # author a brand-new monster in a cut slot (no EXE patch): clone art/behaviour, then retune
 python rf4mod.py monster clone --src 48 --dst 179 -o new.bin      # seed slot 179 from Orc
-python rf4mod.py monster set 179 --set HP=1500 "DEF bonus=200" "Drop 1=95" "Drop 1 chance=300" --file new.bin -o new.bin
+python rf4mod.py monster set 179 --set HP=1500 "DEF bonus=200" "Drop 1=95" "Drop 1 chance=30" --file new.bin -o new.bin
 # …or do the WHOLE data-only new-monster mod in one shot (clone + name + encounter + package):
 python rf4mod.py monster new --name "Test Golem" --from Orc \
-    --set HP=1800 "ATK bonus=140" "DEF bonus=250" "Fire resist=-2048" "Drop 1=95" "Drop 1 chance=250" \
+    --set HP=1800 "ATK bonus=140" "DEF bonus=250" "Fire resist=-50" "Drop 1=95" "Drop 1 chance=25" \
     --encounter GenA01.bin --out-dir mymod/     # writes rf3NpcParam.bin + rf3TxtNpc_* + GenA01.bin
 ```
 

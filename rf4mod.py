@@ -1803,6 +1803,12 @@ def cmd_monster_free(a):
           + ", ".join(map(str, ids)))
 
 
+def _monster_type(t, field):
+    """The schema type of an rf3NpcParam field (s32 for an unknown name: set_field names it)."""
+    from rf4s_modkit import monster
+    return next((ty for n, _o, ty in t.schema(monster.STEM)["fields"] if n == field), "s32")
+
+
 def cmd_monster_set(a):
     from rf4s_modkit import monster
     _utf8_stdout()
@@ -1815,7 +1821,9 @@ def cmd_monster_set(a):
     try:
         for assign in a.set:
             key, val = assign.split("=", 1)
-            monster.set_field(t, cid, key.strip(), int(val, 0))
+            key = key.strip()
+            monster.set_field(t, cid, key, nlcl.parse_value(val, _monster_type(t, key),
+                                                           nlcl.fixed_bits(monster.STEM, key)))
     except (nlcl.NlclError, ValueError) as e:
         sys.exit(f"monster set: {e}")
     out = _out_or_game(a.out, p)
@@ -1868,7 +1876,9 @@ def cmd_monster_new(a):
     try:
         for assign in (a.set or []):
             k, v = assign.split("=", 1)
-            monster.set_field(t, slot, k.strip(), int(v, 0))
+            k = k.strip()
+            monster.set_field(t, slot, k, nlcl.parse_value(v, _monster_type(t, k),
+                                                           nlcl.fixed_bits(monster.STEM, k)))
     except (nlcl.NlclError, ValueError) as e:
         sys.exit(f"monster new: {e}")
     outdir.mkdir(parents=True, exist_ok=True)
@@ -3633,7 +3643,8 @@ def cmd_param_set(a):
 
 def _param_assign(t, rec, assign, stem):
     """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar). A
-    fixed-point field (nlcl.FIXED_FIELDS) also takes a percentage: dmg_mult=150%; a bit-set
+    field shown as a percentage (nlcl.FIXED_FIELDS) takes one: dmg_mult=150 or 150% (0x.. =
+    the stored value); a bit-set
     field (nlcl.FLAG_FIELDS) takes +name / -name edits: flags=+IgnoreDEF,-Fire,+0x400."""
     key, val = assign.split("=", 1)
     if ":" in key:
@@ -4348,8 +4359,9 @@ def build_parser():
                                        "model/anim/dropN_id/dropN_pm/elem_*/res_*)")
     mo3.add_argument("record", help="char_id number or exact monster name")
     mo3.add_argument("--set", nargs="+", required=True, metavar="FIELD=VALUE",
-                     help='e.g. --set HP=1200 "ATK bonus=90" "Drop 1=95" "Drop 1 chance=200" '
-                          '"Fire resist=4096" (stored values; the field names of `param info`)')
+                     help='e.g. --set HP=1200 "ATK bonus=90" "Drop 1=95" "Drop 1 chance=20" '
+                          '"Fire resist=100" (percent fields take a percentage; the field names of '
+                          '`param info`)')
     mo3.add_argument("--file"); mo3.add_argument("-o", "--out")
     mo3.set_defaults(func=cmd_monster_set)
     mo4 = mosub.add_parser("clone", help="copy a monster's whole 308-byte template into another slot")

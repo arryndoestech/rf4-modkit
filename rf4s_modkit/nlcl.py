@@ -1539,10 +1539,14 @@ def format_value(raw: int, bits=None) -> str:
 
 
 def parse_value(text: str, typ: str = "s32", bits=None) -> int:
-    """A typed field value -> the stored integer. For a fixed-point field '150%' (or the
-    multiplier '1.5x' / '1.5×') is converted; anything else is a plain integer (0x.. allowed)
-    stored as is. Checks the field's width and names the percentage range when it does not fit."""
-    t = str(text).strip()
+    """A typed field value -> the stored integer. In a field shown as a percentage, a number
+    is a percentage ('150', '150%'; or the multiplier '1.5x' / '1.5×') and only hex ('0x1800')
+    is the stored value as is; in any other field it is a plain integer (0x.. allowed). Checks
+    the field's width and names the percentage range when it does not fit."""
+    t = typed = str(text).strip()
+    if bits not in (None, AMOUNT) and not t.endswith(("%",) + MULT_SIGNS) \
+            and not t.lstrip("+-").lower().startswith("0x"):
+        t += "%"                                # a plain number in a percentage field
     if bits == AMOUNT:
         try:
             raw = _amount_raw(float(t))
@@ -1559,7 +1563,7 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
         try:
             v = float(t[:-1].strip())
         except ValueError:
-            raise NlclError(f"{t!r} is not a number") from None
+            raise NlclError(f"{typed!r} is not a number") from None
         one = fixed_scale(bits)
         raw = round((v / 100 if pct else v) * one)
         lo, hi = type_range(typ)
@@ -1570,8 +1574,7 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
     try:
         return int(t, 0)
     except ValueError:
-        raise NlclError(f"{t!r} is not a whole number"
-                        + (" (for a percentage add %, e.g. 150%)" if bits is not None else "")) from None
+        raise NlclError(f"{t!r} is not a whole number") from None
 
 
 def crop_season_decode(season: int) -> dict:

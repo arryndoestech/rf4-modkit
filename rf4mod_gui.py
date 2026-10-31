@@ -304,10 +304,10 @@ def _fixed_tip(text, typ, bits):
     kind = "whole percent" if bits == nlcl.PERCENT else f"Q{bits}"
     try:
         raw = nlcl.parse_value(text, typ, bits)
-        return (f"stored as {raw} ({one} = 100%, {kind}); type a percentage (150%) or a whole "
-                f"number for the stored value")
+        return (f"stored as {raw} ({one} = 100%, {kind}); type a percentage (150 or 150%), or "
+                f"0x.. for the stored value")
     except Exception:
-        return f"{one} = 100% ({kind}); type 150% or a whole number"
+        return f"{one} = 100% ({kind}); type a percentage such as 150"
 
 def _max_rows():
     """Rows shown in big tables before 'refine search' (Options: guiutil.list_rows)."""
@@ -6419,7 +6419,7 @@ class App:
             elif fb is not None:
                 one = nlcl.fixed_scale(fb)
                 bits.append(f"Shown as a percentage: the file stores the fraction × {one} ({one} = "
-                            f"100%). Type a percentage (150%) or the stored whole number.")
+                            f"100%). Type a percentage (150 or 150%); 0x.. sets the stored value.")
             if nlcl.flag_bits(stem, n) is not None:
                 bits.append("A set of bits: double-click (or F2) for a tick box per bit.")
             col_help[n] = f"{typ} at +{_o}. " + " ".join(bits) if bits else f"{typ} at +{_o}."
