@@ -1516,8 +1516,14 @@ def test_param():
     if sdt:
         t = nlcl.NlclTable.load(sdt)
         # archive 14819 skill cast-cost: action 3 = RP 14 / gov skill 0
-        _check("rf3ParamSkillData cost schema (14819)",
-               t.get(3, 4, "u16") == 14 and t.get(7, 4, "u16") == 16 and t.get(7, 12, "s32") == 1)
+        r3, r7, r27 = (t.row(k, "rf3ParamSkillData") for k in (3, 7, 27))
+        _check("rf3ParamSkillData cost + XP schema (14819)",
+               r3["RP cost"] == 14 and r7["RP cost"] == 16 and r7["Skill 1"] == 1
+               and r7["Skill 1 XP"] == 10
+               and (r27["Skill 1"], r27["Skill 1 XP"], r27["Skill 2"], r27["Skill 2 XP"],
+                    r27["Skill 3"], r27["Skill 3 XP"]) == (35, 2, 5, 8, 12, 15)
+               and nlcl.fixed_bits("rf3ParamSkillData", "RP cost (share of max RP)") == 8
+               and nlcl.ref_kind("rf3ParamSkillData", "Skill 3") == "skill")
     psk = next((p for p in files if p.name == "rf3ParamSkill.bin"), None)
     if psk:
         t = nlcl.NlclTable.load(psk)

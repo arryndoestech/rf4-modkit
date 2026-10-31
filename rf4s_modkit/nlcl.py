@@ -90,8 +90,8 @@ FIELD_SCHEMAS = {
         #   +12/16/20 weights of Rng_WeightedPickIndex over the 3 items; on a special rock (set
         #     daily) the smallest weight is x4, capped at 255.
         #   +30 replaces the drop when ProbRoll_RareDrop_HighSkillAndLevel passes: Mining >= 50
-        #     and hammer tier >= 3; chance/1024 = 30 (5 at tier 3), +10 at Mining 75, +20 at 90
-        #     (the +10 / +15 / +20 steps at 150 / 300 / 500 are past the skill cap).
+        #     and hammer tier >= 3; chance/1024 = 30 (5 at tier 3), +10 at Mining 75, +20 at 90,
+        #     +10 at 150, +15 at 300, +20 at 500 (Player_gainEXP lets Mining reach level 999).
         # The bonus drop (4*(min(level,100) + 8*tier) >= a random 0..1023) repeats the same item.
         # Shipped: the upper 16 bits of every dword are 0; rows 20-24 have no items.
         "fields": [
@@ -104,7 +104,7 @@ FIELD_SCHEMAS = {
             ("Item 1", 24, "u16"),
             ("Item 2", 26, "u16"),
             ("Item 3", 28, "u16"),
-            ("Rare item", 30, "u16"),         # replaces the drop now and then once Mining is 50+: about 3% a drop with a 5th-tier hammer or better (0.5% with the 4th, none below), 4% at Mining 75, 6% at 90
+            ("Rare item", 30, "u16"),         # replaces the drop now and then once Mining is 50+: about 3% a drop with the Platinum Hammer (0.5% with the Golden, none below), rising to 6% at Mining 90, 7% at 150, 8% at 300 and 10% at 500
         ],
     },
     "rf3TxtQuest_split3_1": {
@@ -700,21 +700,33 @@ FIELD_SCHEMAS = {
         ],
     },
     "rf3ParamSkillData": {
-        # 176 x 32-byte SKILL CAST-COST table = archive 14819 (indexed by action_id). IDA-
-        # verified vs Player_ChargeSkillCastCostByActionIdFromArchive14819 (RF4S.exe+0xB2170):
-        # RP cost = max(base_cost, (rp_max_coef * 16 * RP_MAX) >> 12) (CORRECTED 2026-09-24:
-        # the coefficient scales the caster's MAX RP, stats+12, not ATK), then * (4096 -
-        # min(gov skill level, 100) * rf3ParamSkill[gov_skill] +36) >> 12, doubled if
-        # cast with the wrong / unmastered weapon. The result is truncated to u16. (Decompiler
-        # folds the 28-byte header into the field offset: record base = data + 28 + 32*id,
-        # fields record-relative.) Data-checked: skill 35 = 4 rising-cost tiers (RP 4/10/25/30).
+        # 176 x 32-byte per-ACTION table = archive 14819, row = action id (an attack, a spell, a
+        # tool use, eating, sleeping, ...). RE-CHECKED 2026-10-31: the archive id appears in
+        # exactly three functions besides the preload -- Combat_ApplyAttackEntry (+0xB1F95: RP
+        # cost + XP), Player_ChargeSkillCastCostByActionIdFromArchive14819 (+0xB2190: RP cost
+        # only) and Player_AwardXpFromAttackEntry (+0xB2357: XP only). (The decompiler folds the
+        # 28-byte header into the offsets: record base = data + 28 + 32*id.)
+        #   RP cost = +4, or when +0 != 0, max(+4 as a dword, (16 * +0 * max RP) >> 12) -- so +0
+        #     is a share of the caster's max RP out of 256 (stats+12) --, then
+        #     * (4096 - min(L,100) * rf3ParamSkill[+12] +36) >> 12 with L = the +12 skill's level,
+        #     truncated to u16, and doubled for the weapon special moves 108..144 when neither
+        #     the matching weapon type is held nor that weapon skill is at level 50+
+        #     (108-115 Short Sword, 116-122 Long Sword, 123-126 Spear, 127-132 Axe / Hammer,
+        #     133-144 Dual Blades). Charged by Combat_ApplyDamage_RpThenHp (HP once RP is out).
+        #   XP: Player_gainEXP(actor, amount, skill) three times: (+8, +12), (+16, +20 as u16),
+        #     (+24, +28 as u16). An amount of 0 gives nothing.
         "fields": [
-            ("rp_max_coef", 0, "u32"),   # if nonzero, RP cost scales with the caster's max RP
-            ("base_cost", 4, "u16"),     # flat RP cost (compared as the dword +4, so keep +6 = 0)
-            ("gov_skill", 12, "s32"),    # governing skill id (for the level discount + mastery gate)
+            ("RP cost (share of max RP)", 0, "u32"),  # when set, the RP cost is this share of the max RP instead, if that is more than the flat cost
+            ("RP cost", 4, "u16"),            # flat RP cost (read as the whole 4 bytes when the share above is set, so the 2 bytes after it must stay 0)
+            ("Skill 1 XP", 8, "s32"),         # XP given to skill 1 each time the action is used
+            ("Skill 1", 12, "s32"),           # the action's skill: gets the XP above, and its "RP cost cut per level" lowers the cost
+            ("Skill 2 XP", 16, "s32"),        # XP given to skill 2 each time the action is used
+            ("Skill 2", 20, "u16"),
+            ("Skill 3 XP", 24, "s32"),        # XP given to skill 3 each time the action is used
+            ("Skill 3", 28, "u16"),
         ],
-        "limits": {"gov_skill": (0, 39, "indexes the 40-row rf3ParamSkill table and the "
-                                        "caster's 40 skill slots")},
+        "limits": {f: (0, 39, "indexes the 40-row rf3ParamSkill table and the player's 40 "
+                              "skill slots") for f in ("Skill 1", "Skill 2", "Skill 3")},
     },
     "rf3ParamSkill": {
         # 40 x 40-byte per-SKILL table = archive 14818, row = skill id 0..39. Every field is a
@@ -722,9 +734,11 @@ FIELD_SCHEMAS = {
         # for a skill at level L. RE-CHECKED 2026-10-31: the archive id appears in exactly eight
         # functions besides the preload, and between them they read only these:
         #   +0..+16 Player_ApplyAllSkillGrowthBonusesFromArchive14818 (+0xB0E00), every skill:
-        #     +0  max HP   += ((coef*L) >> 12) * ceil(L/50)   (so x2 past level 50)
+        #     +0  max HP   += ((coef*L) >> 12) * ceil(L/50)   (x2 past level 50, x3 past 100, ...)
         #     +4  max RP   += min((coef*L) >> 12, (100*coef) >> 12)   (levels past 100 add nothing)
         #     +8 / +12 / +16  base STR / INT / VIT += ((coef*L) >> 12) * ceil(L/300)
+        #     (skill levels go past 100: Player_gainEXP stops most skills at 999, Cooking /
+        #     Forging / Chemistry / Crafting and the resist skills 26..32 at 99)
         #     (the status-resist skills 26..32 also add a HARD-CODED 83968*L >> 12 = 0.5% per
         #     level to their resist; that is not in this table)
         #   +20 only two rows are read: row 0 (Short Sword) by Actor_ComputeBuffedAtkOrDef
@@ -743,11 +757,11 @@ FIELD_SCHEMAS = {
         #     Combat_ApplyAttackEntry +0xB1FEC, Effect_ApplyByKindAndSpawn +0xED110).
         # All reads are signed 32-bit.
         "fields": [
-            ("Max HP per level", 0, "s32"),        # max HP gained per level of this skill (x2 past level 50)
+            ("Max HP per level", 0, "s32"),        # max HP gained per level of this skill, times 2 past level 50, times 3 past 100, and so on
             ("Max RP per level", 4, "s32"),        # max RP gained per level of this skill (up to level 100)
-            ("STR per level", 8, "s32"),           # base STR gained per level of this skill
-            ("INT per level", 12, "s32"),          # base INT gained per level of this skill
-            ("VIT per level", 16, "s32"),          # base VIT gained per level of this skill
+            ("STR per level", 8, "s32"),           # base STR gained per level of this skill (times 2 past level 300)
+            ("INT per level", 12, "s32"),          # base INT gained per level of this skill (times 2 past level 300)
+            ("VIT per level", 16, "s32"),          # base VIT gained per level of this skill (times 2 past level 300)
             ("Weapon ATK per level", 20, "s32"),   # read on two rows only: Short Sword's value x the level of the held weapon or tool's own skill goes to ATK and DEF (for every weapon and tool); Throwing's goes to thrown items' attack; the other rows are ignored
             ("unused 24", 24, "s32"),              # the game never reads this column
             ("Spell ATK per level", 28, "s32"),    # magic skills only: attack added to spells of this element per level
@@ -1032,6 +1046,8 @@ FIXED_FIELDS = {
     "rf3CropParam": {f: 7 for f in ("Growth speed", "Level gain", "Size gain", "Yield gain")},
     # Item_ComputeStackGoldValue (RF4S.exe+0x454A0): gold = price * value / 100
     "rf3PriceTable": {f"Lv {j}": PERCENT for j in range(1, 11)},
+    # share of the max RP out of 256 (Combat_ApplyAttackEntry: (16 * coef * rp_max) >> 12)
+    "rf3ParamSkillData": {"RP cost (share of max RP)": 8},
     # chances out of 256 (TileObject_ApplyToolHit's ProbRoll_ExtraDrop_FavorsNoSkill)
     "MapOre_Rate": {"Break chance": 8, "Scrap chance": 8},
 }
@@ -1157,7 +1173,7 @@ REF_FIELDS = {
     "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)
     "rf3TxtShopNpc_split2_1": {"char_id": "char"},
     "rf3TxtQuest_split3_1": {"client_id": "char"},
-    "rf3ParamSkillData": {"gov_skill": "skill"},
+    "rf3ParamSkillData": {f: "skill" for f in ("Skill 1", "Skill 2", "Skill 3")},
     "rf3ParamMagic": {"Skill Type": "skill"},
     "rf3ScheduleID": {"room": "room"},
 }
