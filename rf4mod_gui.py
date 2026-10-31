@@ -4745,7 +4745,7 @@ class App:
                 initialfile="rf3ItemStrengthening.csv",
                 filetypes=[("CSV", "*.csv"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_text(t.to_csv(names), encoding="utf-8")
+                pathlib.Path(f).write_text(t.to_csv(names, shown=True), encoding="utf-8")
                 self.status.config(text=f"Exported {len(t)} rows → {f}")
         ttk.Button(bar, text="Export CSV…", command=export_csv).pack(side="right", padx=4)
 
@@ -6622,13 +6622,31 @@ class App:
             return win
         doc._param_raw = raw_edit                                             # (selftest)
 
+        def shown_csv():
+            """Every record as CSV, the way the table shows it: its columns (unused ones only
+            while shown), percentages, names with their ids ("Cheap Cloth (831)"), bit names."""
+            import csv as _csv
+            import io as _io
+            out = _io.StringIO()
+            w = _csv.writer(out, lineterminator="\n")
+            hide = set() if show_unused.get() else set(unused)
+            shown = [c for c in cols if c not in hide]
+            w.writerow(shown)
+            for i in range(t.entry_count):
+                vals = dict(zip(cols, [i] + ([row_name(i)] if name_col else [])
+                                + ([used.get(i, "")] if used_col else [])
+                                + (pre_vals(i) if pre_cols else [])
+                                + [edit_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]))
+                w.writerow([vals[c] for c in shown])
+            return out.getvalue()
+        doc._param_csv = shown_csv                                             # (selftest)
+
         def export_csv():
-            """Every record as CSV: the stored (raw) values plus the row-name column."""
             f = filedialog.asksaveasfilename(defaultextension=".csv",
                 initialfile=pathlib.Path(doc.cur_name).stem + ".csv",
                 filetypes=[("CSV", "*.csv"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_text(t.to_csv(stem, row_name if name_col else None), encoding="utf-8")
+                pathlib.Path(f).write_text(shown_csv(), encoding="utf-8")
                 self.status.config(text=f"Exported {t.entry_count} records → {f}")
 
         # ---- add / remove rows (NlclTable.append_record / delete_record: entry_count,

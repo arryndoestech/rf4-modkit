@@ -1466,6 +1466,17 @@ def test_param():
         _check("rf3ItemStrengthening difficulty + non-food marker (ptr_78)",
                t.entry_count == 1150 and t.get(340, 0, "u16") == 70 and t.get(29, 0, "u16") == 1
                and (t.get(340, 152, "u16") & 0x4000) and not (t.get(29, 152, "u16") & 0x4000))
+        from rf4s_modkit import strengthening as _stg
+        _st = _stg.StrengtheningTable.load(stg) if hasattr(_stg, "StrengtheningTable") else None
+        if _st is not None:
+            _q = next(n for n in _stg.NAMES if _stg.UNIT[n] == "q12")
+            _shown = _st.to_csv(shown=True).splitlines()
+            _hdr = _shown[0].split(",")
+            _check("the strengthening view's Export CSV writes Q12 fields as percentages "
+                   "(the raw CLI CSV keeps numbers)",
+                   all(r.split(",")[_hdr.index(_q)].endswith("%") for r in _shown[1:4])
+                   and not _st.to_csv().splitlines()[1].split(",")[_hdr.index(_q)].endswith("%"),
+                   (_q, _shown[1][:80]))
     # named CSV view (rf4mod param csv / GUI Export CSV): schema columns + a name column
     pt = next((p for p in files if p.name == "rf3PriceTable.bin"), None)
     if pt and il:
@@ -12050,6 +12061,16 @@ def test_viewer_tabs():
                    "monster with a tame chance as tameable",
                    "???" not in herbert and herbert.split()[1] == tv.item("1", "values")[1]
                    and "tameable" in d._param_sheet.get("1.0", "1.end"), herbert)
+            import csv as _csv
+            rows = list(_csv.reader(d._param_csv().splitlines()))
+            hdr, orc_row = rows[0], rows[49]
+            _check("Export CSV writes the table as shown: percentages, names with ids, the "
+                   "name / kind columns, no hidden unused columns",
+                   hdr[:3] == ["#", "name", "kind"] and orc_row[hdr.index("Size")] == "100%"
+                   and orc_row[hdr.index("Drop 1")] == "Cheap Cloth (831)"
+                   and orc_row[hdr.index("Drop 1 chance")] == "12%" and orc_row[1] == "Orc"
+                   and not any(h.startswith("unused") for h in hdr) and len(rows) == 393,
+                   (hdr[:4], orc_row[:4]))
             _check("rf3NpcParam shows as a table with name / kind / total columns and the "
                    "selected character's sheet below; a drop id past 2047 is refused; Transforms into "
                    "0 reads (none)",

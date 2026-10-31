@@ -433,12 +433,15 @@ class StrengtheningTable:
         out.append("  ids 1..47                     ability bit 0x10000000 (no reader found)")
         return "\n".join(out)
 
-    def to_csv(self, names: dict | None = None) -> str:
+    def to_csv(self, names: dict | None = None, shown: bool = False) -> str:
+        """Every row as CSV: the stored numbers, or with `shown` the editor's text
+        (percentages for the Q12 fields, hex for bit words -- value_text)."""
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(["id", "name"] + NAMES + ["status_flags"])
         for r in self.rows():
-            w.writerow([r.id, self.label(r.id, names)] + r.values + ["; ".join(r.status_flags())])
+            vals = [value_text(n, v) for n, v in zip(NAMES, r.values)] if shown else r.values
+            w.writerow([r.id, self.label(r.id, names)] + vals + ["; ".join(r.status_flags())])
         return buf.getvalue()
 
     def to_json(self, names: dict | None = None, nonzero: bool = True) -> str:
