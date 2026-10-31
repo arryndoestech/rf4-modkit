@@ -3709,24 +3709,25 @@ def _crop_load():
 
 def _crop_is_planted(row):
     """A real farm crop: has growth stages, or carries a season affinity."""
-    return bool(row["stage1"] or row["stage2"] or row["stage3"]
-                or (row["season"] & nlcl._CROP_SEASON_MASK))
+    return bool(row["Stage 1 days"] or row["Stage 2 days"] or row["Stage 3 days"]
+                or (row["Seasons"] & nlcl._CROP_SEASON_MASK))
 
 
 def cmd_crop_show(a):
     p, t = _crop_load()
     namefn = _row_name_fn(CROP_FILE)
     row = t.row(a.record, p.stem)
-    dec = nlcl.crop_season_decode(row["season"])
-    print(f"rec {a.record}: {namefn(row['harvest']) or '(unnamed)'}")
-    print(f"  stages [{row['stage1']},{row['stage2']},{row['stage3']}]  regrow {row['regrow']}"
-          f"  water {row['water']}  grow_cap {row['grow_cap']}")
-    print(f"  harvest item {row['harvest']} ({namefn(row['harvest'])})"
-          f"   seed item {row['seed']} ({namefn(row['seed'])})")
+    dec = nlcl.crop_season_decode(row["Seasons"])
+    print(f"rec {a.record}: {namefn(row['Harvest item']) or '(unnamed)'}")
+    print(f"  stage days [{row['Stage 1 days']},{row['Stage 2 days']},{row['Stage 3 days']}]"
+          f"  regrow days {row['Regrow days']}  health {row['Health']}"
+          f"  drought penalty {row['Drought penalty']}")
+    print(f"  harvest item {row['Harvest item']} ({namefn(row['Harvest item'])})"
+          f"   seed item {row['Seed item']} ({namefn(row['Seed item'])})")
     print(f"  season: grows-well={dec['grows']}  penalized={dec['penalized']}"
-          f"  harvest-by={dec['harvest']}  (raw 0x{row['season']:X})")
-    print(f"  growth-rate mults (128=1.0x): size={row['gmul_size']}"
-          f"  q1={row['gmul_1']} q2={row['gmul_2']} q3={row['gmul_3']}")
+          f"  harvest-by={dec['harvest']}  (raw 0x{row['Seasons']:X})")
+    print(f"  gains (128 = 100%): growth speed {row['Growth speed']}  level {row['Level gain']}"
+          f"  size {row['Size gain']}  yield {row['Yield gain']}")
 
 
 def cmd_crop_list(a):
@@ -3737,9 +3738,9 @@ def cmd_crop_list(a):
         row = t.row(i, p.stem)
         if not _crop_is_planted(row):
             continue
-        dec = nlcl.crop_season_decode(row["season"])
-        print(f"  {i:3d}  {(namefn(row['harvest']) or ''):24s}"
-              f"  grows={'/'.join(dec['grows']):20s}  water={row['water']}")
+        dec = nlcl.crop_season_decode(row["Seasons"])
+        print(f"  {i:3d}  {(namefn(row['Harvest item']) or ''):24s}"
+              f"  grows={'/'.join(dec['grows']):20s}  drought penalty={row['Drought penalty']}")
         n += 1
     print(f"  ({n} crops)")
 
@@ -3752,7 +3753,7 @@ def cmd_crop_season(a):
         sys.exit(f"unknown season(s) {bad}; valid: {', '.join(nlcl.CROP_SEASONS)}")
     if not seasons:
         sys.exit("give at least one season, e.g. --set winter  or  --set spring,fall")
-    old = t.row(a.record, p.stem)["season"]
+    old = t.row(a.record, p.stem)["Seasons"]
     new = nlcl.crop_season_encode(old, seasons, single=not a.all_year)
     t.set_field(a.record, "season", new, p.stem)
     out = _out_or_game(a.out, p)

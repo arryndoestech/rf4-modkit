@@ -32,6 +32,7 @@ from collections.abc import Mapping
 FILES = {
     "characters": ("rf3TxtNpc_split2_1.eng", 0),     # row = character id (0 = the player)
     "items": ("rf3TxtItem_split2_1.eng", 0),         # row = item id
+    "item_descriptions": ("rf3TxtItem_split2_2.eng", 0),     # row = item id (no built-in default)
     "maps": ("rf3TxtMapName.eng", 1),                # row = map id + 1 (row 0 is a header)
     "skills": ("rf3TxtSkill_split2_1.eng", 0),       # row = skill id (40)
 }

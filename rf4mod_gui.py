@@ -6281,8 +6281,14 @@ class App:
                     return ""                                   # item 0 = an empty slot
                 nm = vnames[n].get(raw_v) or (names_of(ref[n]).get(raw_v) if ref[n] else None)
                 return nm or (f"#{raw_v}" if ref[n] else str(raw_v))
-            if nlcl.flag_bits(stem, n) is not None:
-                return nlcl.format_flags(raw_v, typ)
+            bits = nlcl.flag_bits(stem, n)
+            if bits is not None:
+                # the named bits that are set ("Water Shoes: walk on water"), any others in hex
+                named = [bits[m] for m in sorted(bits) if raw_v & m]
+                rest = raw_v & ~sum(bits) & ((1 << (8 * nlcl._FMT[typ][1])) - 1)
+                if not named:
+                    return nlcl.format_flags(raw_v, typ) if raw_v else ""
+                return ", ".join(named) + (f", +0x{rest:X}" if rest else "")
             return nlcl.format_value(raw_v, nlcl.fixed_bits(stem, n))
 
         def edit_text(n, raw_v, typ):
@@ -6653,7 +6659,8 @@ class App:
         """rf3CropParam — crop editor with READABLE season affinity (GUI twin of the
         `rf4mod crop` CLI). The grid decodes each crop's growing season; the editor lets
         you pick which season(s) a crop grows in via checkboxes (writes the +104
-        boost/penalty bits) alongside per-field editing (water, growth-rate mults, stages).
+        boost/penalty bits) alongside per-field editing (stage days, health, growth gains...).
+        Hovering a column heading explains the column (nlcl.schema_notes).
         Byte-surgical; edits update the in-memory table, Save (Ctrl+S) writes it out."""
         doc = self._doc
         t = nlcl.NlclTable(data)
@@ -6670,15 +6677,22 @@ class App:
         only_crops = tk.BooleanVar(value=True)
         ttk.Checkbutton(bar, text="planted crops only", variable=only_crops).pack(side="left", padx=6)
 
-        show_cols = ["stage1", "stage2", "stage3", "regrow", "water", "grow_cap",
-                     "gmul_size", "gmul_1", "gmul_2", "gmul_3", "harvest", "seed"]
+        ITEM_COLS = ("Harvest item", "Seed item")
+        show_cols = ["Stage 1 days", "Stage 2 days", "Stage 3 days", "Regrow days", "Health",
+                     "Drought penalty", "Growth speed", "Level gain", "Size gain", "Yield gain",
+                     *ITEM_COLS]
         cols = ["#"] + show_cols + ["grows", "name"]
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=15)
         widths = {"#": 40, "grows": 150, "name": 150}
+        heads = {"grows": "Grows in", "name": "Crop"}
         for c in cols:
-            tv.heading(c, text=c); tv.column(c, width=widths.get(c, 58), anchor="w")
+            tv.heading(c, text=heads.get(c, c)); tv.column(c, width=widths.get(c, 58), anchor="w")
         _table_scrollbars(top, tv)
+        _about, col_notes = nlcl.schema_notes(stem)
+        col_notes = {**col_notes, "#": "The row number (the crop link a seed item points at).",
+                     "grows": "The seasons it grows in (double-click or F2 for the tick boxes).",
+                     "name": "What you harvest (the game's item name)."}
 
         def is_planted(i):
             return bool(any(t.get(i, k, "u8") for k in range(3))
@@ -6694,7 +6708,7 @@ class App:
                 if q and q not in str(i) and q not in nm.lower():
                     continue
                 row = t.row(i, stem)
-                grows = "/".join(nlcl.crop_season_decode(row["season"])["grows"])
+                grows = "/".join(nlcl.crop_season_decode(row["Seasons"])["grows"])
                 vals = [i] + [nlcl.format_value(row[c], nlcl.fixed_bits(stem, c)) for c in show_cols] + [grows, nm]
                 tv.insert("", "end", iid=str(i), values=vals); shown += 1
                 if shown >= _max_rows():
@@ -6714,7 +6728,7 @@ class App:
         def put(fn, row, text):
             i = int(row)
             off, ty = ftyp[fn]
-            val = (_parse_item(text, tbl) if fn in ("harvest", "seed")
+            val = (_parse_item(text, tbl) if fn in ITEM_COLS
                    else nlcl.parse_value(text, ty, nlcl.fixed_bits(stem, fn)))
             before = t.build()
             t.set(i, off, val, ty)
@@ -6762,10 +6776,10 @@ class App:
         item_choices = lambda: [_item_text(i, tbl) for i in sorted(set(tbl) | {0})]
         specs = {}
         for fn in show_cols:
-            specs[fn] = {"get": (lambda row, fn=fn: _item_text(t.get(int(row), *ftyp[fn]), tbl)) if fn in ("harvest", "seed")
+            specs[fn] = {"get": (lambda row, fn=fn: _item_text(t.get(int(row), *ftyp[fn]), tbl)) if fn in ITEM_COLS
                          else (lambda row, fn=fn: nlcl.format_value(t.get(int(row), *ftyp[fn]), nlcl.fixed_bits(stem, fn))),
                          "put": lambda row, text, fn=fn: put(fn, row, text)}
-            if fn in ("harvest", "seed"):
+            if fn in ITEM_COLS:
                 specs[fn]["choices"] = item_choices
         specs["grows"] = {"action": seasons}
         cells = CellEdit(tv, specs)
@@ -6786,9 +6800,21 @@ class App:
                 changed(int(keep) if keep else 0, "Back to the file as opened")
 
         btns = ttk.Frame(doc.content); btns.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
-        hint = ttk.Label(btns, foreground="#555", text="Click a cell and type to change it; the "
-                         "'grows' cell opens the season tick boxes (double-click or F2).")
+        hint_text = ("Click a cell and type to change it; the 'Grows in' cell opens the season tick "
+                     "boxes (double-click or F2). Hover a column heading for what it means.")
+        hint = ttk.Label(btns, foreground="#555", text=hint_text)
         _hint_line(hint)
+
+        def on_motion(e):
+            col = None
+            if tv.identify_region(e.x, e.y) == "heading":
+                try:
+                    col = cols[int(tv.identify_column(e.x)[1:]) - 1]
+                except (ValueError, IndexError):
+                    col = None
+            hint.config(text=f"{heads.get(col, col)}: {col_notes[col]}" if col in col_notes else hint_text)
+        tv.bind("<Motion>", on_motion, add="+")
+        tv.bind("<Leave>", lambda _e: hint.config(text=hint_text), add="+")
         doc._crop = dict(cells=cells, seasons=seasons, undo=undo, revert=revert, tree=tv)   # (selftest)
 
     def _view_monster(self, name, data):

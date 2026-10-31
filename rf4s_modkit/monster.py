@@ -184,9 +184,9 @@ def render(table: nlcl.NlclTable, char_id: int,
         out.append("  drops: (none)")
     weak = {e: v for e, v in m["elements"].items() if v}
     if weak:
-        # positive = WEAK (takes more), negative = resists
+        # positive = resists (Combat_GetElementBonus returns -stat), negative = WEAK
         parts = [f"{e} {_pct(v)}" for e, v in weak.items()]
-        out.append("  elements: " + ", ".join(parts) + "   (+ = weak, - = resist)")
+        out.append("  elements: " + ", ".join(parts) + "   (+ = resist, - = weak)")
     res = {s: v for s, v in m["resists"].items() if v}
     if res:
         out.append("  resists: " + ", ".join(f"{s} {_pct(v)}" for s, v in res.items()))

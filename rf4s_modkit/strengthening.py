@@ -119,7 +119,7 @@ FIELDS = [
     ("fed_proc_fatigue", 64, "fed_proc", "q12", "while fed: fatigue on hit (unused)"),
     ("fed_proc_cold", 65, "fed_proc", "q12", "while fed: cold on hit (unused)"),
     ("fed_proc_faint", 66, "fed_proc", "q12", "while fed: faint on hit (unused)"),
-    ("el_fire", 67, "element", "q12", "element affinity: fire (armor families / while fed; +4096 = weak)"),
+    ("el_fire", 67, "element", "q12", "element affinity: fire (armor families / while fed; +4096 = resists it fully, negative = weak)"),
     ("el_water", 68, "element", "q12", "element affinity: water"),
     ("el_earth", 69, "element", "q12", "element affinity: earth"),
     ("el_wind", 70, "element", "q12", "element affinity: wind"),

@@ -217,7 +217,9 @@ FIELD_SCHEMAS = {
         # edit of "def" actually raised the monster's MAGIC attack; those names now error.
         # +80..+88 = the level-up STR/INT/VIT roll weights and +92..+108 the per-level
         # ATK/MAT/DEF/MDF/HP growth percents (Actor_ApplyLevelUp +0xB2CE0).
-        # element affinities (s32, Q12: +4096 = +100% damage taken = WEAK; negative = resist)
+        # element affinities (s32, Q12: POSITIVE = RESIST, +4096 = takes no damage of it; negative =
+        # WEAK -- Combat_GetElementBonus +0x96140 returns -stat; corrected 2026-10-31, Ghost light
+        # -4096, Dead Tree fire -4096)
         # + status-proc resists (low s16 of each dword, Q12: 4096 = 100% immune) IDA-verified vs
         # Actor_LoadBaseStatsFromTemplate (RF4S.exe+0xAF940): elements [0..7] copied to
         # stats+100..128 (note the swap: +176=neutral -> stats+128, +180=love -> stats+124);
@@ -227,7 +229,7 @@ FIELD_SCHEMAS = {
         # the cure bits Item_UseOnActor (+0xB4150) clears, and of the resist skills 26..32
         # (Player_ApplyAllSkillGrowthBonusesFromArchive14818 +0xB0E00). The old schema put
         # paralysis/sleep/seal at +188/+192/+196 (one slot off).
-        # Live-cross-checked: boss[200] = ~100% status resist + fire-resist/water-weak.
+        # Live-cross-checked: boss[200] = ~100% status resist, fire -4096 (weak) / water +2048 (resists).
         # ADD ROW (2026-09-19): Char_GetTemplate (RF4S.exe+0x1C63B0) copies archive 14812 +
         # 28 + 308*char_id into g_charTemplateBuffer with NO bound check and never reads the
         # +24 count, so any char id the game can reference (Gen rosters, scripts, `monster
@@ -288,22 +290,33 @@ FIELD_SCHEMAS = {
         # GROWTH-TICK fields added 2026-07-20 (dual-binary verified: RF4S
         # Crop_TickGrowthForTile @RF4S.exe+0x185240 == code.bin Farm_DailyGrowCrops,
         # byte-identical; offsets cross-checked against live rf3CropParam records):
-        #   +16 grow_cap   MISNOMER (kept as the field key). CORRECTED 2026-07-21: this
+        # FIELD NAMES 2026-10-31: plain names ("Health" was grow_cap, "Drought penalty" water,
+        # "Growth speed" / "Level gain" / "Size gain" / "Yield gain" gmul_size / gmul_1..3).
+        #   +16 Health     CORRECTED 2026-07-21: this
         #                  is the crop's BASE [HP] -- copied straight into tile+8 (the live
         #                  [HP] the Magnifying Glass shows) at planting, and the wither-roll
         #                  reference (buckets current [HP] at cap>>1, cap>>2). Apple=140.
         #                  NOT a "size/quality ceiling".
-        #   +40 water      MISNOMER (kept as the field key). CORRECTED 2026-07-21: NOT water
+        #   +40 Drought penalty  CORRECTED 2026-07-21: NOT water
         #                  consumption. Only fires when the crop's [HP] (tile+8) hits 0: then
         #                  it subtracts this from the crop's growth-quality byte (record+6)
         #                  each parched night (halved if watered that day). = the crop's
         #                  DROUGHT/dry-out growth penalty. Trees=0. (The [HP] drain itself
         #                  comes from a per-crop item-record field, not this.)
-        #   +64/68/72/76 gmul_size/gmul_1/gmul_2/gmul_3  per-growth-dimension RATE
-        #                  multipliers, applied as delta*val*32/4096 -> **128 = 1.0x**
-        #                  (64=0.5x, 256=2.0x). +64 drives the size dimension; +68/72/76
-        #                  the three quality/vigor dims. Neutral crops = 128,128,128,128.
-        #   +104 season    property + SEASON-AFFINITY flag word (u32). Season bits:
+        #   +64/68/72/76   per-night RATE multipliers, applied as delta*val*32/4096 -> **128 =
+        #                  1.0x** (64=0.5x, 256=2.0x); neutral crops = 128,128,128,128. RE-READ
+        #                  2026-10-31 (Crop_TickGrowthForTile scales four separate gains):
+        #                  +64 Growth speed -- the stage progress (tile+4 bits 0..16; the gain
+        #                      Formula A/B/C raise, Crop_ApplyFertilizerToTile cases 806..808);
+        #                  +68 Level gain -- the crop LEVEL (tile bits 10..21, diminished by
+        #                      g_cropLevelGainDiminish; Greenifier / Greenifier+ raise it);
+        #                  +72 Size gain -- the SIZE (tile bits 22..31; Giantizer raises,
+        #                      Minimizer lowers it; at its maximum 511 four neighbours can merge
+        #                      into a giant crop, Crop_TryMergeIntoGiantCropFrom4Adjacent);
+        #                  +76 Yield gain -- how many you harvest (tile+4 bits 17..28,
+        #                      g_cropNumberGainDiminish).
+        #                  The old notes had +64 as the size rate.
+        #   +104 Seasons   property + SEASON-AFFINITY flag word (u32). Season bits:
         #                  BOOST (in-season, +50% growth) 0x1000=spring 0x2000=summer
         #                  0x4000=fall 0x8000=winter ; PENALTY (off-season, -25%..-75%)
         #                  0x10000=spring 0x20000=summer 0x40000=fall 0x80000=winter.
@@ -312,7 +325,7 @@ FIELD_SCHEMAS = {
         #                  an all-season crop sets none of 0x1000..0x80000. Low bits also
         #                  carry harvest-method (0x400=tool / 0x600=hand-pickup) + misc
         #                  crop-property flags -- edit season bits, keep the low bits.
-        #   +12 spawn_weight  CORRECTED 2026-10-30 (was "growth", a u32): a u16 weight that
+        #   +12 Wild spawn weight  CORRECTED 2026-10-30 (was "growth", a u32): a u16 weight that
         #                  FarmFieldTask_Spawn (+0x1842B0) copies into the field's per-kind lists
         #                  (rows 0..25 debris / grass, 26..37 rocks, and crop rows with +104 bit 0x80
         #                  or 0x100) for Map_SpawnDailyRandomEntities' weighted picks (+0x186850):
@@ -330,15 +343,22 @@ FIELD_SCHEMAS = {
         # kinds 38..87 (the tile kind = the crop row, 7 bits): a planted row outside 38..87 never
         # grows, so a new crop has to reuse one of rows 38..87.
         "grow": "fixed:88",
-        "names": "item", "name_field": "harvest",
+        "names": "item", "name_field": "Harvest item",
         "fields": [
-            ("stage1", 0, "u8"), ("stage2", 1, "u8"), ("stage3", 2, "u8"),
-            ("regrow", 3, "u8"), ("spawn_weight", 12, "u16"), ("grow_cap", 16, "u32"),
-            ("water", 40, "u16"),
-            ("gmul_size", 64, "u32"), ("gmul_1", 68, "u32"),
-            ("gmul_2", 72, "u32"), ("gmul_3", 76, "u32"),
-            ("harvest", 96, "u32"), ("seed", 100, "u32"),
-            ("season", 104, "u32"),
+            ("Stage 1 days", 0, "u8"),        # days from planting to the second growth stage
+            ("Stage 2 days", 1, "u8"),        # days in the second stage
+            ("Stage 3 days", 2, "u8"),        # days in the third stage, then it can be harvested
+            ("Regrow days", 3, "u8"),         # days until it fruits again after a harvest; 0 = harvested once
+            ("Wild spawn weight", 12, "u16"),  # how often it appears on its own on fields (debris, grass, wild crops)
+            ("Health", 16, "u32"),            # the crop's starting health (the Magnifying Glass HP); low health risks withering
+            ("Drought penalty", 40, "u16"),   # growth lost each night its health is 0 (halved if watered that day)
+            ("Growth speed", 64, "u32"),      # how fast it moves through its stages (100% = normal; Formula fertilizers raise the same gain)
+            ("Level gain", 68, "u32"),        # how fast its level rises (Greenifier raises the same gain)
+            ("Size gain", 72, "u32"),         # how fast it grows toward giant size (Giantizer raises it, Minimizer lowers it)
+            ("Yield gain", 76, "u32"),        # how fast the number you harvest rises
+            ("Harvest item", 96, "u32"),      # the item you get when you harvest it
+            ("Seed item", 100, "u32"),        # the seed that plants it
+            ("Seasons", 104, "u32"),          # which seasons it grows in (and how it is harvested): use the tick boxes
         ],
     },
     "rf3UseItemParam": {
@@ -431,25 +451,64 @@ FIELD_SCHEMAS = {
         # dealt (stats+56: a weapon hit pushes 6x it), +52 hit-stun dealt (stats+60: +30x it frames),
         # +56..+80 on-hit status chances poison..faint and +84 HP drain (Attack_PopulateAttackInfo
         # FromWeaponAndStatus -> AttackInfo+340..+354), +88..+116 element affinities fire, water,
-        # earth, wind, light, dark, love, neutral (-16384..8192, +4096 = weak), +120 will resist,
+        # earth, wind, light, dark, love, neutral (-16384..8192; POSITIVE = RESIST: Combat_GetElement
+        # Bonus +0x96140 returns -stat, Fire Ring +4096 fire / -2048 water), +120 will resist,
         # +124 crit resist (stats+76), +128 knockback resist (stats+64), +132..+156 status resists
         # poison..faint, +160 HP-drain resist, +164 farm-tool charge scale, +168 hit reach scale,
         # +172 hit arc scale, +176 the held model's archive offset. All Q12 except +40 and +176.
+        # FIELD NAMES 2026-10-31: plain names, and +0 shown (the weapon's attack flags:
+        # Attack_PopulateAttackInfoFromWeaponAndStatus copies the item's +0 into AttackInfo+320,
+        # the bits rf3ParamMagic's flags use; Equip_AccumulateItemStats tests +0 bit 0x20000000).
+        # +4 Boots effects = Player_GetBootsEffectWord (+0x16D170), +8 Accessory effects =
+        # Player_CheckStatusFlag (+0xB24C0): each bit is set by exactly one shipped item, named
+        # after it below (the effect wording is that item's in-game description).
         "fields": [
-            ("boots_word", 4, "u32"), ("special_bit", 8, "u32"),
-            ("atk", 12, "s32"), ("mat", 16, "s32"), ("def", 20, "s32"),
-            ("mdf", 24, "s32"), ("str", 28, "s32"), ("int", 32, "s32"),
-            ("vit", 36, "s32"), ("hunger", 40, "s32"),
-            ("crit", 44, "s32"), ("knockback", 48, "s32"), ("stun", 52, "s32"),
-        ] + [(f"proc_{s}", 56 + 4 * k, "s32") for k, s in enumerate(
-            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
-        ] + [("hp_drain", 84, "s32")] + [(f"el_{s}", 88 + 4 * k, "s32") for k, s in enumerate(
-            ("fire", "water", "earth", "wind", "light", "dark", "love", "neutral"))
-        ] + [("will_res", 120, "s32"), ("crit_res", 124, "s32"), ("knockback_res", 128, "s32")
-        ] + [(f"res_{s}", 132 + 4 * k, "s32") for k, s in enumerate(
-            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
-        ] + [("res_drain", 160, "s32"), ("tool_charge", 164, "s32"), ("reach", 168, "s32"),
-             ("arc", 172, "s32"), ("model", 176, "s32")],
+            ("Weapon flags", 0, "u32"),       # a weapon's attack flags (element, hammer hit, ...): tick boxes
+            ("Boots effects", 4, "u32"),      # the special effect of boots (walk on water, sneak, ...): tick boxes
+            ("Accessory effects", 8, "u32"),  # the special effect of an accessory (Happy Ring, Talisman, ...): tick boxes
+            ("ATK", 12, "s32"),               # attack added
+            ("MAT", 16, "s32"),               # magic attack added
+            ("DEF", 20, "s32"),               # defense added
+            ("MDF", 24, "s32"),               # magic defense added
+            ("STR", 28, "s32"),               # strength added
+            ("INT", 32, "s32"),               # intelligence added
+            ("VIT", 36, "s32"),               # vitality added
+            ("Hunger on hit", 40, "s32"),     # how hungry a hit makes the target (0..500)
+            ("Critical chance", 44, "s32"),   # chance of a critical hit (100% = always)
+            ("Knockback", 48, "s32"),         # how far your hits push (a weapon hit pushes 6x this)
+            ("Stun", 52, "s32"),              # how long your hits make the target flinch
+            ("Poison chance", 56, "s32"),     # chance a hit poisons
+            ("Seal chance", 60, "s32"),       # chance a hit seals
+            ("Paralysis chance", 64, "s32"),  # chance a hit paralyses
+            ("Sleep chance", 68, "s32"),      # chance a hit puts to sleep
+            ("Fatigue chance", 72, "s32"),    # chance a hit tires
+            ("Cold chance", 76, "s32"),       # chance a hit gives a cold
+            ("Faint chance", 80, "s32"),      # chance a hit knocks out
+            ("HP drain", 84, "s32"),          # share of the damage you heal on a hit
+            ("Fire resist", 88, "s32"),       # fire damage taken: 100% = none, negative = weak (takes more)
+            ("Water resist", 92, "s32"),      # water damage taken: 100% = none, negative = weak
+            ("Earth resist", 96, "s32"),      # earth damage taken: 100% = none, negative = weak
+            ("Wind resist", 100, "s32"),      # wind damage taken: 100% = none, negative = weak
+            ("Light resist", 104, "s32"),     # light damage taken: 100% = none, negative = weak
+            ("Dark resist", 108, "s32"),      # dark damage taken: 100% = none, negative = weak
+            ("Love resist", 112, "s32"),      # love damage taken: 100% = none, negative = weak
+            ("Neutral resist", 116, "s32"),   # non-elemental damage taken: 100% = none, negative = weak
+            ("Will resist", 120, "s32"),      # resistance added to the wearer's will
+            ("Critical resist", 124, "s32"),  # lowers the attacker's critical chance (100% = never)
+            ("Knockback resist", 128, "s32"),  # lowers how far hits push you (100% = not at all)
+            ("Poison resist", 132, "s32"),    # 100% = immune to poison
+            ("Seal resist", 136, "s32"),      # 100% = immune to seal
+            ("Paralysis resist", 140, "s32"),  # 100% = immune to paralysis
+            ("Sleep resist", 144, "s32"),     # 100% = immune to sleep
+            ("Fatigue resist", 148, "s32"),   # 100% = immune to fatigue
+            ("Cold resist", 152, "s32"),      # 100% = immune to colds
+            ("Faint resist", 156, "s32"),     # 100% = immune to fainting
+            ("HP drain resist", 160, "s32"),  # protects against hits that drain your HP
+            ("Tool charge", 164, "s32"),      # how much a farm tool's charged use covers
+            ("Reach", 168, "s32"),            # how far the weapon reaches (100% = normal)
+            ("Swing arc", 172, "s32"),        # how wide the swing is (100% = normal)
+            ("Held model", 176, "s32"),       # which model shows in the hand (an offset into the model archives)
+        ],
     },
     "rf3Parameter": {
         # 200 x 24-byte CHARACTER-LEVEL curve = archive 14813 (row = character level 0..199).
@@ -904,12 +963,12 @@ FIXED_FIELDS = {
     "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
     "rf3ItemStrengthening": {"stun": 12},
     "rf3ItemEquipmentParam": {f: 12 for f in (
-        ["crit", "knockback", "stun", "hp_drain", "will_res", "crit_res", "knockback_res",
-         "res_drain", "tool_charge", "reach", "arc"]
-        + [f"proc_{s}" for s in ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")]
-        + [f"res_{s}" for s in ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")]
-        + [f"el_{s}" for s in ("fire", "water", "earth", "wind", "light", "dark", "love", "neutral")])},
-    "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
+        ["Critical chance", "Knockback", "Stun", "HP drain", "Will resist", "Critical resist",
+         "Knockback resist", "HP drain resist", "Tool charge", "Reach", "Swing arc"]
+        + [f"{s} chance" for s in ("Poison", "Seal", "Paralysis", "Sleep", "Fatigue", "Cold", "Faint")]
+        + [f"{s} resist" for s in ("Poison", "Seal", "Paralysis", "Sleep", "Fatigue", "Cold", "Faint")]
+        + [f"{s} resist" for s in ("Fire", "Water", "Earth", "Wind", "Light", "Dark", "Love", "Neutral")])},
+    "rf3CropParam": {f: 7 for f in ("Growth speed", "Level gain", "Size gain", "Yield gain")},
     # Item_ComputeStackGoldValue (RF4S.exe+0x454A0): gold = price * value / 100
     "rf3PriceTable": {f"Lv {j}": PERCENT for j in range(1, 11)},
 }
@@ -960,7 +1019,51 @@ FLAG_FIELDS = {
         **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
         **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},
         0x2000: "Level up"}},
-    "rf3ItemEquipmentParam": {"boots_word": {}, "special_bit": {}},
+    # rf3ItemEquipmentParam (2026-10-31): Weapon flags = the rf3ParamMagic flags (the same word,
+    # AttackInfo+320) plus the bits only equipment carries (Equip_AccumulateItemStats tests
+    # 0x20000000; 0x80000 / 0x100000 / 0x8000000 from strengthening.FORGE_SPECIALS); the boots
+    # and accessory bits are each set by one shipped item (named after it, its in-game description
+    # as the effect; 0x400 / 0x20000 / 0x800000 / 0x2000000 / 0x2 / 0x4 / 0x8 also seen in code).
+    "rf3ItemEquipmentParam": {
+        "Weapon flags": {**{m: n for m, n in ({
+            0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
+            0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
+            0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun",
+            0x2000: "Turnip-and-stars hit effect", 0x8000: "Grab (Marionetta)",
+            0x10000: "Water hit sound", 0x200000: "Always 1 damage", 0x400000: "Half element resist",
+            0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
+            0x2000000: "Faint drop Potato", 0x4000000: "Faint drop Turnip",
+            0x40000000: "No critical hits"}).items()},
+            0x80000: "Drop rate up", 0x100000: "Protects spouse / child",
+            0x8000000: "Search like the Magnifying Glass",
+            0x20000000: "Lightweight (a shield still works with dual blades / fists, at half)"},
+        "Boots effects": {
+            0x1: "Water Shoes: walk on water", 0x2: "Sneaking Boots: attack before monsters notice",
+            0x4: "Fast Step Boots: a spring in your step", 0x8: "Free Farming Shoes: farm off the grid",
+            0x10: "Piyo Sandals: chirp with every step", 0x20: "Ice Skates: skate (no jump or spin)",
+            0x40: "Step-In Boots: no dash attacks", 0x80: "Snow Boots: never slip",
+            0x100: "Wet Boots: more critical hits", 0x200: "Secret Shoes: look taller",
+            0x400: "Ghost Boots: travel faster", 0x800: "Rocket Wing: walk much faster (tiring)",
+            0x1000: "Iron Geta: travel slower", 0x2000: "Heavy Boots: not blown away, tire faster",
+            0x4000: "Strider Boots: longer dash invincibility"},
+        "Accessory effects": {
+            0x1: "Happy Ring: find more items", 0x2: "Poison Ring: resist and inflict poison",
+            0x4: "Paralysis Ring: resist and inflict paralysis",
+            0x8: "Silent Ring: resist and inflict seal", 0x10: "Magic Ring: faster charging",
+            0x20: "Throwing Ring: throw items far", 0x40: "Anette's Necklace: move faster",
+            0x80: "Stay-up Ring: no yawning", 0x100: "Field Pendant: stronger friendly monsters",
+            0x200: "Sun Pendant: stronger companions", 0x400: "Dew Pendant: farm tools hit harder",
+            0x800: "Star Pendant: more experience", 0x1000: "Heart Pendant: more skill experience",
+            0x2000: "Hand-Knit Scarf: half RP use", 0x4000: "Fluffy Scarf: no RP use (some exceptions)",
+            0x8000: "Shield Ring: sometimes take only 1 damage",
+            0x10000: "Magic Charm: use the stronger of ATK / MAT",
+            0x20000: "Champ Belt: much more max HP", 0x40000: "Rosary: fewer monsters appear",
+            0x80000: "Talisman: reverses status effects", 0x100000: "Hero's Proof: slowly recover HP",
+            0x200000: "Proof of Wisdom: slowly recover RP", 0x400000: "Art of Defense: half flinch time",
+            0x800000: "Art of Attack: wider weapon reach",
+            0x1000000: "Art of Magic: halves non-elemental damage",
+            0x2000000: "Earth Pendant: stronger recovery items",
+            0x4000000: "Strange Pendant: no DEF / MDF"}},
     "rf3ItemStrengthening": {"status_word": {}},
     # rf3ScheduleID.flags: see rf4s_modkit/schedule.py (copied to the NPC's day plan +5)
     "rf3ScheduleID": {"flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
