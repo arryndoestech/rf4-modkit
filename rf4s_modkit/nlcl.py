@@ -194,6 +194,13 @@ FIELD_SCHEMAS = {
         # 0xFA3 constants are the `4003 + char_id` face-ICON base (faceIcon/face_NPC01 = 4004)
         # in the face-icon resolver (RF4S.exe+0x3C9C0) and Player_TransformToCharacterById
         # (+0x165FC0), so this table is inherited 3DS data the PC build never loads by id.
+        # Re-checked 2026-10-31: the only 4003 immediates are the face-icon resolver
+        # (RF4S.exe+0x3C9C0, 4003 + char 1..23) and Player_TransformToCharacterById (+0x165EB0,
+        # 4003 + char id), Game_PreloadAllArchives has no 4003 range, and the name appears only
+        # in the UTF-16 archive path table.
+        "unused": "The game never loads it (RF4S.exe has no code that opens it); it is left over "
+                  "from the 3DS version, where it placed the sweat drops, anger marks and notes "
+                  "around the portraits.",
         "grow": "unused:no code site loads archive 4003 (the 0xFA3 constants in the exe are "
                 "the 4003+char_id face-icon base)",
         "fields": [("Spot 1 X", 0, "s8"), ("Spot 1 Y", 1, "s8"), ("Spot 2 X", 2, "s8"), ("Spot 2 Y", 3, "s8"),

@@ -1548,6 +1548,7 @@ def test_param():
                "companion); live tables do not",
                all(nlcl.unused_reason(f"rf3ParameterNPC_0{k}") for k in (1, 2, 3))
                and nlcl.unused_reason("rf4TxtQuestRequestDetailFormat_split2_1")
+               and nlcl.unused_reason("rf3FaceEffectParam")
                and not nlcl.unused_reason("rf3Parameter") and not nlcl.unused_reason("MapOre_Rate")
                and t.grow_info("rf3ParameterNPC_01")[0].startswith("unused:"))
     mmp = next((p for p in files if p.name == "rf3MapMiniPos.bin"), None)
