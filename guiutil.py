@@ -685,21 +685,49 @@ class CellEdit:
             return None
 
     def redraw(self):
-        for f in self._outline:
-            f.place_forget()
-        if self.cur is None or self.box is not None:
-            return
-        iid, col = self.cur
-        try:
-            bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
-        except tk.TclError:
-            bb = ""
+        """Put the outline on the cursor's cell. The four edges are moved, not taken down and put
+        up again: an unmapped edge leaves its old pixels on screen until the table repaints that
+        spot, which showed as a second, lagging box while the cursor moved."""
+        bb = ""
+        if self.cur is not None and self.box is None:
+            iid, col = self.cur
+            try:
+                bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
+            except tk.TclError:
+                bb = ""
         if not bb:
+            for f in self._outline:
+                f.place_forget()
             return
         x, y, w, h = bb
         for f, (fx, fy, fw, fh) in zip(self._outline, ((x, y, w, 2), (x, y + h - 2, w, 2),
                                                        (x, y, 2, h), (x + w - 2, y, 2, h))):
             f.place(x=fx, y=fy, width=fw, height=fh)
+
+    def see_column(self, col):
+        """Scroll the table sideways just enough that column `col` is in view (Treeview.see only
+        scrolls rows)."""
+        tv = self.tv
+        shown = self._shown()
+        if col not in shown:
+            return
+        x0 = int(tv.column("#0", "width")) if "tree" in str(tv.cget("show")) else 0
+        widths = [int(tv.column(c, "width")) for c in shown]
+        k = shown.index(col)
+        left = x0 + sum(widths[:k])
+        right = left + widths[k]
+        total = x0 + sum(widths)
+        first, last = (float(v) for v in tv.xview())
+        lo, hi = first * total, last * total
+        if left < lo:
+            tv.xview_moveto(left / total)
+        elif right > hi:
+            tv.xview_moveto(min(left, right - (hi - lo)) / total)
+
+    def _settle(self):
+        """Repaint now, so the table and the outline change in the same frame."""
+        self.redraw()
+        self.tv.update_idletasks()
 
     def _selected(self, _e=None):
         f = self.tv.focus()
@@ -708,7 +736,8 @@ class CellEdit:
             return
         col = self.cur[1] if self.cur and self.cur[1] in cols else cols[0]
         self.cur = (f, col)
-        self.tv.after_idle(self.redraw)
+        self._settle()                          # move the outline with the row, not a beat later
+        self.tv.after_idle(self.redraw)         # and again once a scroll has settled
 
     def _click(self, e):
         if self.tv.identify_region(e.x, e.y) != "cell":
@@ -726,7 +755,8 @@ class CellEdit:
         i = cols.index(self.cur[1]) if self.cur[1] in cols else 0
         self.cur = (self.cur[0], cols[min(max(i + d, 0), len(cols) - 1)])
         self.tv.see(self.cur[0])
-        self.redraw()
+        self.see_column(self.cur[1])
+        self._settle()
         return "break"
 
     def targets(self, iid):
@@ -773,6 +803,7 @@ class CellEdit:
             spec["action"](iid)
             return
         self.tv.see(iid)
+        self.see_column(col)
         self.tv.update_idletasks()
         bb = self.tv.bbox(iid, col)
         if not bb:

@@ -12017,6 +12017,30 @@ def test_viewer_tabs():
             except Exception:
                 big = True
             cols = list(tv["columns"])
+            # the cell cursor scrolls the table sideways to stay in view, and its outline sits
+            # on the cell (four edges, moved in place)
+            ce = d._param_cells
+            root.geometry("1000x700+0+0"); root.deiconify(); root.update()
+            ce.cur = ("48", ce.editable()[0])
+            ce.redraw()
+            for _k in range(40):
+                ce.move(1)
+            root.update_idletasks()
+            bb = tv.bbox("48", ce.cur[1])
+            edges = [(f.winfo_ismapped(), f.winfo_x()) for f in ce._outline]
+            right_ok = bool(bb) and bb[0] + bb[2] <= tv.winfo_width() + 2 and float(tv.xview()[0]) > 0
+            for _k in range(40):
+                ce.move(-1)
+            root.update_idletasks()
+            bb2 = tv.bbox("48", ce.cur[1])
+            back = (ce.cur[1] == ce.editable()[0] and bool(bb2) and bb2[0] >= 0
+                    and bb2[0] + bb2[2] <= tv.winfo_width() + 2)
+            root.withdraw()
+            _check("the cell cursor scrolls the table sideways with Left / Right (stays in view both "
+                   "ways) and its outline is on the cell",
+                   right_ok and back and bb and all(m for m, _x in edges)
+                   and min(x for _m, x in edges) >= bb[0] - 1,
+                   (bb, tv.xview(), edges[:2], back))
             _check("rf3NpcParam shows as a table with name / kind / total columns and the "
                    "selected character's sheet below; a drop id past 2047 is refused",
                    cols[:7] == ["#", "name", "kind", "ATK", "DEF", "MAT", "MDF"]
