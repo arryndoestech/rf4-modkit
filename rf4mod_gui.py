@@ -3166,6 +3166,18 @@ class App:
         """A TEXT archive (rf3Txt* / rf4Txt* / rf3mc.<locale>): the text editor (text_tab.py)."""
         import text_tab
         doc = self._doc
+        if pathlib.PurePosixPath(name.replace("\\", "/")).name.lower().startswith("rf3mc."):
+            # the cutscene / dialogue lines of one language: point at the editor that shows
+            # each line in its scene
+            hint = ttk.Frame(doc.content, padding=(6, 4, 6, 2)); hint.pack(fill="x")
+            ttk.Button(hint, text="Open the Cutscene Editor",
+                       command=self.cmd_cutscene_editor).pack(side="right", padx=(8, 0))
+            hl = ttk.Label(hint, foreground="#555", justify="left", text=(
+                "These are the cutscene and dialogue lines of one language. They can also be edited "
+                "in the Cutscene Editor, which shows each line in its scene with who says it."))
+            hl.pack(side="left", fill="x", expand=True)
+            hl.bind("<Configure>", lambda e: hl.config(wraplength=max(200, e.width - 8)))
+            doc._mc_hint = hl                                                   # (selftest)
         doc._text_tab = text_tab.TextTab(self, doc, name, data)
         doc._export_kind = "textjson"; doc._export_arc = doc._text_tab.m.arc
         self.export_btn.config(state="normal")

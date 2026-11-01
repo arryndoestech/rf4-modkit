@@ -11554,6 +11554,18 @@ def test_text_tab():
         got = strings_file.parse(sp.read_text(encoding="utf-8"))
         _check(".strings: values change, keys are added and deleted, and the saved file reads back",
                got == {"Menu.Start": 'Begin "now"', "Menu.Extra": "Extra"}, got)
+        # rf3mc.<language>: a hint and a button to the Cutscene Editor; other text files have none
+        mc = B / "rf3mc.eng"
+        if mc.is_file():
+            n4 = next(e[0] for e in app.source.entries if e[0].rsplit("/", 1)[-1] == "rf3mc.eng")
+            i4 = next(k for k, e in enumerate(app.source.entries) if e[0] == n4)
+            app._reveal_entry(i4); app._suppress_select = False; app._on_select(None)
+            root.update_idletasks()
+            h = getattr(app._doc, "_mc_hint", None)
+            _check("rf3mc.<language> shows a hint that the lines can be edited in the Cutscene Editor "
+                   "(rf3TxtItem does not)",
+                   h is not None and "Cutscene Editor" in h.cget("text")
+                   and getattr(doc, "_mc_hint", None) is None)
     finally:
         try:
             root.destroy()
