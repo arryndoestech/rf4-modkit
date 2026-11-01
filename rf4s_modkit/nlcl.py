@@ -1339,9 +1339,14 @@ AMOUNT = "amount"
 PERMILLE = "permille"
 # ANGLE marks a u16 angle (65536 = 360 degrees), shown and typed in degrees ("90°", 90, 90deg).
 ANGLE = "angle"
+# CHAR marks a u32 holding one character as its UTF-8 bytes, big-endian in the low bytes
+# (0xE38182 = あ): shown and typed as the character itself (0x.. = the stored value).
+CHAR = "char"
+CHAR_LABELS = {"(space)": " ", "(wide space)": "　"}   # characters that would look empty
 # The seven statuses in the game's bit order (Effects bits, proc / resist fields).
 _STATUS_NAMES = ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")
 FIXED_FIELDS = {
+    "rf3TxtNameEntryBoard_split2_1": {"Key character": CHAR},
     "rf3ParamMagic": {f: 12 for f in ("ATK scaling", "MAT scaling", "Damage multiplier",
                                       "Level bonus", "Knockback", "Stun", "Launch",
                                       "Launch gravity", "Hit size", "Poison chance",
@@ -1878,6 +1883,16 @@ def format_value(raw: int, bits=None) -> str:
     the designers typed, not 114.99%); two decimals always do for Q12, fewer for Q7."""
     if bits is None:
         return str(raw)
+    if bits == CHAR:
+        if not raw:
+            return ""
+        try:
+            ch = (raw & 0xFFFFFFFF).to_bytes(4, "big").lstrip(b"\0").decode("utf-8")
+        except UnicodeDecodeError:
+            ch = ""
+        if len(ch) != 1:
+            return f"0x{raw & 0xFFFFFFFF:X}"
+        return next((k for k, v in CHAR_LABELS.items() if v == ch), ch)
     if bits == AMOUNT:
         return _format_amount(raw)
     if bits == ANGLE:                           # the shortest degrees that store back the same
@@ -1903,6 +1918,21 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
     is a percentage ('150', '150%'; or the multiplier '1.5x' / '1.5×') and only hex ('0x1800')
     is the stored value as is; in any other field it is a plain integer (0x.. allowed). Checks
     the field's width and names the percentage range when it does not fit."""
+    if bits == CHAR:
+        t = str(text)
+        if t.strip().lower() in CHAR_LABELS:
+            t = CHAR_LABELS[t.strip().lower()]
+        if t.strip().lower().startswith("0x") and len(t.strip()) > 2:
+            return parse_value(t.strip(), typ)
+        t = t.strip() or t                      # a typed space stays a space
+        if t == "":
+            return 0
+        if len(t) != 1:
+            raise NlclError(f"{t!r}: type one character (or 0x.. for the stored value)")
+        b = t.encode("utf-8")
+        if len(b) > 4:
+            raise NlclError(f"{t!r} does not fit in 4 UTF-8 bytes")
+        return int.from_bytes(b, "big")
     t = typed = str(text).strip()
     if bits == ANGLE and not t.lstrip("+-").lower().startswith("0x"):
         num = t.rstrip("\u00b0").strip()

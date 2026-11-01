@@ -1365,6 +1365,15 @@ def test_bin_editors():
         put = nlcl.NlclTable(doc.cur_data).get(150, 49, "u8")
         doc._param_cells.set("150", "Detail 50", "(none) (0)")
         res["itemparam"] = shown + (put, doc.cur_data == d)
+        # the name-entry keyboard: keys show and are typed as their character
+        d = (B / "rf3TxtNameEntryBoard_split2_1.bin").read_bytes()
+        app._show("rf3TxtNameEntryBoard_split2_1.bin", d); doc = app._doc
+        tv = doc._param_tree
+        shown = (tv.set("0", "Key character"), tv.set("5", "Key character"), tv.set("270", "Key character"))
+        doc._param_cells.set("0", "Key character", "い")
+        typed = nlcl.NlclTable(doc.cur_data).get(0, 0, "u32")
+        doc._param_cells.set("0", "Key character", "あ")
+        res["keys"] = shown + (typed, doc.cur_data == d)
         # the route editor: typed X, Add point / Add link / Remove, Undo; taming headings
         rp = B / "rf3route.bin"
         if rp.exists():
@@ -1452,6 +1461,9 @@ def test_bin_editors():
            "a picked name writes its id and (none) restores the file",
            res.get("itemparam") == ("[%sSteamed] ", "Star mark", "Sell price", "",
                                     "Upgrade: Difficulty", True, 2, True), res.get("itemparam"))
+    _check("rf3TxtNameEntryBoard: keys show as their character (あ, the gap key as '(wide space)'), "
+           "a typed い stores its UTF-8 bytes 0xE38184, typing あ back restores the file",
+           res.get("keys") == ("あ", "(wide space)", "－", 0xE38184, True), res.get("keys"))
     if "route" in res:
         _check("rf3route in the editor: plain headings, a typed X writes the point, Add link / Add point "
                "/ Remove change the graph, Undo brings the file back byte-exact",

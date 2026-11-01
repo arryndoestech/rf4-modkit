@@ -6550,6 +6550,9 @@ class App:
             elif fb == nlcl.ANGLE:
                 bits.append("Shown in degrees: the file stores 65536 for a full turn. Type "
                             "degrees such as 90.")
+            elif fb == nlcl.CHAR:
+                bits.append("Shown as the character: the file stores its UTF-8 bytes. Type the "
+                            "character; 0x.. sets the stored value.")
             elif fb is not None:
                 one = nlcl.fixed_scale(fb)
                 bits.append(f"Shown as a percentage: the file stores the fraction × {one} ({one} = "
