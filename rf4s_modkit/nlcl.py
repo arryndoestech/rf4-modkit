@@ -1339,6 +1339,8 @@ AMOUNT = "amount"
 PERMILLE = "permille"
 # ANGLE marks a u16 angle (65536 = 360 degrees), shown and typed in degrees ("90°", 90, 90deg).
 ANGLE = "angle"
+# The seven statuses in the game's bit order (Effects bits, proc / resist fields).
+_STATUS_NAMES = ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("ATK scaling", "MAT scaling", "Damage multiplier",
                                       "Level bonus", "Knockback", "Stun", "Launch",
@@ -1362,6 +1364,12 @@ FIXED_FIELDS = {
                                            "Fed: max HP %", "Fed: max RP %", "Fed: STR %",
                                            "Fed: INT %", "Fed: VIT %", "Fed: critical chance",
                                            "Fed: knockback resist", "Fed: critical resist")},
+                        # status / element resists and status chances: 4096 = 100% (the detail
+                        # window prints them as 100 * v / 4096, RF4S.exe+0x38D60 mode 4; checked
+                        # 2026-11-01)
+                        **{f"Fed: {s} {k}": 12 for s in _STATUS_NAMES for k in ("resist", "chance")},
+                        **{f"Fed: {e} resist": 12 for e in ("fire", "water", "earth", "wind", "light",
+                                                            "dark", "love")},
                         "Per-level bonus": 15},             # % per item level (4096 = 12.5%)
     "rf3ParamSkill": {**{f: AMOUNT for f in ("Max HP per level", "Max RP per level",
                                              "STR per level", "INT per level", "VIT per level",
@@ -1471,8 +1479,8 @@ MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplie
 #   rf3UseItemParam.effect_bits: Item_UseOnActor (RF4S.exe+0xB4150) clears actor status bits
 #     `effect_bits & 0x3F` (cures), ORs `(effect_bits & 0x1FC0) >> 6` into the inflicted
 #     statuses and levels up on 0x2000; status order poison, seal, paralysis, sleep, fatigue,
-#     sickness (cold), faint (the order of the proc / resist bits).
-_STATUS = ("poison", "seal", "paralysis", "sleep", "fatigue", "sickness", "faint")
+#     cold, faint (the order of the proc / resist bits).
+_STATUS = _STATUS_NAMES
 FLAG_FIELDS = {
     "rf3ParamMagic": {"Flags": {
         0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",

@@ -4891,6 +4891,17 @@ def test_strengthening():
            and set(nlcl.FIXED_FIELDS["rf3ItemStrengthening"]) == {n for n in strengthening.NAMES
                                                                    if strengthening.UNIT[n] == "q12"}
            and all(nlcl.schema_notes("rf3ItemStrengthening")[1].get(n) for n in strengthening.NAMES))
+    uses = [f[0] for f in nlcl.FIELD_SCHEMAS["rf3UseItemParam"]["fields"]]
+    shared_q12 = {n for n in uses if strengthening.UNIT.get(n) == "q12"}
+    _check("rf3UseItemParam shows every 4096 = 100% field as a percentage (the same fields "
+           "rf3ItemStrengthening does: status / element resists, status chances), and both "
+           "Effects pickers say 'cold' like the fields",
+           len(shared_q12) >= 24 and shared_q12 <= set(nlcl.FIXED_FIELDS["rf3UseItemParam"])
+           and all(nlcl.fixed_bits("rf3UseItemParam", f"Fed: {e} resist") == 12
+                   for e in ("fire", "water", "earth", "wind", "light", "dark", "love"))
+           and nlcl.flag_bits("rf3UseItemParam", "Effects")[0x20] == "Cure cold"
+           and nlcl.flag_bits("rf3ItemStrengthening", "Effects")[0x800] == "Inflict cold",
+           sorted(shared_q12 - set(nlcl.FIXED_FIELDS["rf3UseItemParam"])))
 
 
 def test_sound_table():
