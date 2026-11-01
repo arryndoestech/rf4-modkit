@@ -1,4 +1,4 @@
-# RF4S Modding Toolkit — full manual
+# RF4S Modding Toolkit — extended README
 
 The complete reference: every editor, command and file format. To get started, read
 [README.md](README.md) first.

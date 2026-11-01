@@ -84,7 +84,7 @@ Playback dedup (Sfx_PlaySoundWithDedupAndVoiceKill): replaying the SAME id as th
 previous request is skipped inside a window -- 0.25 x clip length for base names that
 start with 'V', 0.05 s otherwise ("Attempted to play sound '%s' twice ...").
 
-Adding a brand-new sound (see MANUAL.md / `rf4mod sound add`):
+Adding a brand-new sound (see README_EXTENDED.md / `rf4mod sound add`):
   1. put the audio file (.ogg recommended) anywhere under Bundle/, e.g.
      Bundle/00_mods/SE_MYMOD_BELL.ogg -- its bare file name must be unique;
   2. `rf4mod sound add common_audio_data.bdat auto SE_MYMOD_BELL.ogg -o <out>` and
