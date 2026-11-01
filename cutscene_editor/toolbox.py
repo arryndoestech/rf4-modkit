@@ -125,8 +125,7 @@ def flag_rows(doc):
         w = v.bit_width
         rng = "0 / 1" if w == 1 else "0 – %d" % ((1 << w) - 1)
         kind = {"FLG": "flag", "REG": "value", "EV": "event"}.get(v.kind, v.kind or "")
-        desc = (v.jp_name or "") + ("  (your variable)" if v.extra else "") + (
-            "  (renamed from %s)" % v.orig if not v.extra and v.orig != v.name else "")
+        desc = v.jp_name or ""
         rows.append((v.name, kind, str(v.bit_offset), str(w), rng, desc, v.name))
     for lo, hi, name, detail in emflags.ZONE2_BLOCKS:
         ids = str(emflags.ZONE2_BASE + lo) if lo == hi else "%d – %d" % (emflags.ZONE2_BASE + lo, emflags.ZONE2_BASE + hi)
@@ -446,17 +445,21 @@ class ReferenceWindow:
 
     def apply_variable_editor(self):
         """Follow Options -> Cutscene Editor -> Variable editor (off by default): the New /
-        Rename / Restore / Delete buttons, the Show filter and the free-bits line."""
+        Rename / Restore / Delete buttons, the Show filter, Custom column and free-bits line."""
         box = getattr(self, "_var_edit_box", None)
         if box is None:
             return
         try:
             if self.variable_editor_on():
+                self.flag_list.tree["displaycolumns"] = (
+                    "name", "kind", "id", "width", "reads", "writes", "description", "Custom")
                 if box.winfo_manager() != "pack":
                     box.pack(side="left")
                 if self.free_lbl.winfo_manager() != "pack":
                     self.free_lbl.pack(anchor="w", pady=(2, 0))
             else:
+                self.flag_list.tree["displaycolumns"] = (
+                    "name", "kind", "id", "width", "reads", "writes", "description")
                 box.pack_forget()
                 self.free_lbl.pack_forget()
                 if self.var_filter.get() != "all":
@@ -497,10 +500,13 @@ class ReferenceWindow:
         top, bot = ttk.Frame(pw), ttk.Frame(pw)
         pw.add(top, weight=3)
         pw.add(bot, weight=2)
-        self.flag_list = t = _Filtered(top, ("name", "kind", "id", "width", "reads", "writes", "description"),
-                                       (250, 60, 80, 45, 55, 55, 360), self._flag_rows(None),
+        self.flag_list = t = _Filtered(top, ("name", "kind", "id", "width", "reads", "writes",
+                                             "description", "_token", "_key", "Custom"),
+                                       (250, 60, 80, 45, 55, 55, 360, 1, 1, 60), self._flag_rows(None),
                                        on_select=self._show_var_uses,
                                        on_activate=lambda r: r and self.copy(r[7], r[0]), height=12)
+        t.tree["displaycolumns"] = ("name", "kind", "id", "width", "reads", "writes", "description")
+        t.tree.column("Custom", anchor="center")
         t.pack(fill="both", expand=True)
         self.uses_hdr = ttk.Label(bot, text="Used by: select a variable", font=("Segoe UI", 9, "bold"))
         self.uses_hdr.pack(anchor="w", pady=(4, 2))
@@ -704,10 +710,11 @@ class ReferenceWindow:
         return v.name
 
     def _flag_rows(self, index):
-        """The list rows: (name, kind, id, width, reads, writes, description, token, key).
+        """The list rows: (name, kind, id, width, reads, writes, description, token, key, custom).
         key = (bit offset, width) of an emdeb variable (None for the zone-2 rows). The
         Show filter (all / unused / yours / renamed / the game's) applies."""
         rows = []
+        tbl = self._var_table()
         for name, kind, bid, w, _rng, desc, tok in self._flag_base:
             key = (int(bid), int(w)) if kind != "zone-2 bit" else None
             if key is None:
@@ -718,9 +725,10 @@ class ReferenceWindow:
                 u = index.get(key, ())
                 r = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "write") if u else 0
                 w_ = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "read") if u else 0
-            rows.append((name, kind, bid, w, r, w_, desc, tok, key))
+            v = tbl.get(name) if tbl is not None and key is not None else None
+            rows.append((name, kind, bid, w, r, w_, desc, tok, key,
+                         "✓" if v is not None and (v.extra or v.orig != v.name) else ""))
         flt = self.var_filter.get() if hasattr(self, "var_filter") else "all"
-        tbl = self._var_table()
         if flt != "all" and tbl is not None:
             def keep(row):
                 v = tbl.get(row[0]) if row[8] is not None else None

@@ -149,6 +149,15 @@ def ask_new_variable(parent, tbl, _auto=None):
     def show_range(*_a):
         w = width() if kind.get() == "number" else None
         rng.config(text="bits: values 0 – %d" % ((1 << w) - 1) if w and 2 <= w <= 16 else "bits (2 – 16)")
+
+    def update_prefix(*_a):
+        prefix = "REG_" if kind.get() == "number" else "FLG_"
+        current = name.get()
+        other = "FLG_" if prefix == "REG_" else "REG_"
+        if current.startswith(other):
+            name.set(prefix + current[len(other):])
+
+    kind.trace_add("write", update_prefix)
     for v in (kind, bits):
         v.trace_add("write", show_range)
     show_range()
