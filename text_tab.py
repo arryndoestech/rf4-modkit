@@ -382,7 +382,7 @@ class TextTab:
         if key and key[0] == "file":
             return pathlib.Path(key[1]), "file"
         fn = pathlib.Path(self.name).name
-        t = gamepaths.game_targets([fn])
+        t = gamepaths.save_targets([fn])
         if t is None:
             return None, None
         return t[fn], "game"

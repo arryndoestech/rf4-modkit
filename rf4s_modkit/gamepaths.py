@@ -207,6 +207,86 @@ def game_targets(names) -> dict | None:
     return out
 
 
+SAVE_TO_MODS_SETTING = "save_to_mods"      # Options -> General: saves go to Bundle/00_mods
+
+
+def save_to_mods() -> bool:
+    """Whether saves of game files go to Bundle/00_mods/<name> instead of over the copy the
+    game loads now (setting "save_to_mods", off by default): the game's own files stay as
+    they are, and the mod is exactly what is in 00_mods."""
+    return bool(get_setting(SAVE_TO_MODS_SETTING, False))
+
+
+def save_targets(names) -> dict | None:
+    """Where each game file is SAVED: game_targets (the copy the game loads now), except that
+    with save_to_mods() on a file the game loads from outside Bundle/00_mods is written to
+    Bundle/00_mods/<name> instead (a copy already in 00_mods is the one the game loads, so
+    it is written over). write_game_file moves the game's own loose copy there on the first
+    save (adopt_into_mods), so only one copy stays; other same-named copies outside 00_mods
+    are hidden by it anyway, so they are not listed under None. Use game_targets to READ."""
+    t = game_targets(names)
+    if t is None or not save_to_mods():
+        return t
+    from . import mbundle
+    b = find_bundle_dir()
+    mods = b / mbundle.MOD_FOLDER
+    for n in names:
+        if mods not in t[n].parents:
+            t[n] = mods / n
+        others = [o for o in t[None].get(n, []) if mods in o.parents or o.name != n]
+        if others:
+            t[None][n] = others
+        else:
+            t[None].pop(n, None)
+    return t
+
+
+def adopt_into_mods(target) -> bool:
+    """With save_to_mods() on, before the FIRST save of Bundle/00_mods/<name>: move the game's
+    own loose copy of <name> (the one it loads now, outside 00_mods) there, so the game folder
+    keeps one copy of the file instead of an override plus a hidden original. True when a
+    file was moved (the caller then backs it up as the original: write_game_file does)."""
+    target = pathlib.Path(target)
+    if not save_to_mods() or target.exists():
+        return False
+    from . import mbundle
+    b = find_bundle_dir()
+    if b is None:
+        return False
+    mods = b / mbundle.MOD_FOLDER
+    if target.parent != mods:
+        return False
+    hits = mbundle.loose_index(b).get(target.name) or []
+    if not hits or mods in (b / hits[0]).parents:
+        return False
+    src = b / hits[0]
+    if not src.is_file():
+        return False
+    mods.mkdir(parents=True, exist_ok=True)
+    src.replace(target)
+    return True
+
+
+def save_path_for(path) -> pathlib.Path:
+    """Where a write over `path` should go: Bundle/00_mods/<name> when save_to_mods() is on and
+    `path` is a game file outside 00_mods, else `path` itself (the command-line tool's default
+    output, the editors' 'write over this file')."""
+    path = pathlib.Path(path)
+    if not save_to_mods():
+        return path
+    from . import mbundle
+    b = find_bundle_dir()
+    if b is None:
+        return path
+    try:
+        rel = path.resolve().relative_to(b.resolve())
+    except ValueError:
+        return path                                 # not a game file: a file opened from disk
+    if rel.parts and rel.parts[0] == mbundle.MOD_FOLDER:
+        return path
+    return b / mbundle.MOD_FOLDER / path.name
+
+
 # ---- backups (settings: backup_originals, backup_previous, backup_dir) -------------------- #
 def backup_root() -> pathlib.Path | None:
     """The backup folder: the setting "backup_dir", else <game>/ModdingBackup; None without a
@@ -314,7 +394,8 @@ def write_game_file(target, blob, force_original=False) -> pathlib.Path | None:
     leaves half a file), backing it up first (backup_before_write). The original's backup
     path when one was made now, else None."""
     target = pathlib.Path(target)
-    backup = backup_before_write(target, force_original)
+    moved = adopt_into_mods(target)         # 00_mods mode: the game's copy moves, kept as original
+    backup = backup_before_write(target, force_original or moved)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(target.name + ".saving")
     tmp.write_bytes(blob)

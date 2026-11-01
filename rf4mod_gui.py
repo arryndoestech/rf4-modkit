@@ -462,6 +462,28 @@ class Source:
         man = mbundle.Manifest(manifest_path)
         src = cls(f"Manifest: {pathlib.Path(manifest_path).name}")
         bdir = pathlib.Path(manifest_path).parent
+        mods = bdir / mbundle.MOD_FOLDER
+        over = {}                                   # name -> (path, size) of a 00_mods copy
+        if mods.is_dir():
+            idx = mbundle.loose_index(bdir.parent if bdir.name == "Bundle" else bdir)
+            for rel, full, size in cls._scan(mods):
+                base = rel.rsplit("/", 1)[-1]
+                hits = idx.get(base) or []
+                if hits and (bdir / hits[0]) == pathlib.Path(full):   # the copy the game loads
+                    over[base] = (pathlib.Path(full), size)
+
+        def loader(primary, base, fallback):
+            # a save can move a file into 00_mods while the list is open: read what is there now
+            def read():
+                m = mods / base
+                if m.is_file():
+                    return m.read_bytes()
+                if primary is not None and primary.is_file():
+                    return primary.read_bytes()
+                if fallback is not None:
+                    return fallback()
+                raise FileNotFoundError(base)
+            return read
         for bname in man.bundle_names():
             bpath = bdir / bname
             udir = bdir / mbundle.unpack_dir_name(bname)
@@ -471,13 +493,18 @@ class Source:
             bundle = mbundle.Bundle(bpath, manifest=man) if bpath.is_file() else None
             for name, info in man.files(bname).items():
                 rel = name.replace("\\", "/").lstrip("/")
-                if rel in loose:
+                base = rel.rsplit("/", 1)[-1]
+                packed = (lambda b, n: (lambda: b.read(n)))(bundle, name) if bundle is not None else None
+                if base in over:                    # Bundle/00_mods holds the copy the game loads
+                    fp, size = over[base]
+                    src.add(name, bname, loader(fp, base, packed), size)
+                    src.paths[name] = fp
+                elif rel in loose:
                     fp = udir / rel
-                    src.add(name, bname, (lambda f: (lambda: f.read_bytes()))(fp), loose[rel])
+                    src.add(name, bname, loader(fp, base, packed), loose[rel])
                     src.paths[name] = fp
                 elif bundle is not None:
-                    src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name),
-                            (info or {}).get("size"))
+                    src.add(name, bname, loader(None, base, packed), (info or {}).get("size"))
         return src
 
     @classmethod
@@ -1357,6 +1384,19 @@ class App:
         Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
                 "Town Square, ...), each one opens and closes. Off: one flat list of files.")
         self._options_rows(gen)
+        ttk.Label(gen, text="Saving", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        self._mods_var = tk.BooleanVar(value=gamepaths.save_to_mods())
+        sm = ttk.Checkbutton(gen, text="Save edits to Bundle\\00_mods", variable=self._mods_var,
+                             command=lambda: gamepaths.set_setting(gamepaths.SAVE_TO_MODS_SETTING,
+                                                                   bool(self._mods_var.get())))
+        sm.pack(anchor="w", pady=(4, 0))
+        Tip(sm, "On: every save of a game file (tables, text, maps, cutscenes, models ...) goes to "
+                "Bundle\\00_mods\\<file name>. The first save of a file moves the game's copy "
+                "there (the file as it was is kept in ModdingBackup), so the game folder holds one "
+                "copy of each file, and your mod is exactly what is in 00_mods. To undo a file, use "
+                "Restore a previous version (Options… → Advanced). Off: a save goes over the copy the "
+                "game loads now (into 00_mods only when the game has the file packed). Also used by "
+                "the command-line tool when it writes without -o.")
         ttk.Label(gen, text="Tables", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
         import guiutil
         self._sticky_var = tk.BooleanVar(value=guiutil.sticky_columns())
@@ -2086,7 +2126,7 @@ class App:
         game_label = self.__dict__.get("_game_label")
         if doc.key is not None and game_label is not None and doc.key[0] == game_label and name:
             from rf4s_modkit import gamepaths
-            targets = gamepaths.game_targets([name])
+            targets = gamepaths.save_targets([name])
             if targets is not None:
                 target = targets[name]
                 try:
@@ -3930,7 +3970,7 @@ class App:
         blobs = {stems[n]: (_sk.build(a), a) for n, a, _d, _t in chosen}
         written = []
         if answer == "install":
-            targets = gamepaths.game_targets(list(blobs))
+            targets = gamepaths.save_targets(list(blobs))
             if targets is None:
                 messagebox.showerror("Import all motions", "No game folder is set up."); return None
             for fn, (blob, a) in blobs.items():
@@ -4063,7 +4103,7 @@ class App:
             self.status.config(text=f"Previewing the imported motion (not saved) -- {file_name}")
             return None
         if answer:
-            targets = gamepaths.game_targets([file_name])
+            targets = gamepaths.save_targets([file_name])
             if targets is None:
                 messagebox.showerror("Import motion", "No game folder is set up."); return None
             try:

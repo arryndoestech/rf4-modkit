@@ -1490,7 +1490,7 @@ class MapEditorPanel:
         if not setname:
             return "This map has no over-model (nothing is drawn over its ground)."
         name = setname + ".model"
-        targets = gamepaths.game_targets([name])
+        targets = gamepaths.save_targets([name])
         if targets is None:
             return "No game folder is set up, so there is nothing to change."
         return setname, name, targets[name]
@@ -2033,7 +2033,7 @@ class MapEditorPanel:
         names = {"map": game_map,
                  "si": d.si_path.name if d.si_path else data.si_name_for_map(d.base),
                  "gen": d.gen_path.name if d.gen_path else data.gen_name_for_map(d.base)}
-        targets = gamepaths.game_targets([names[p] for p in parts if names[p]])
+        targets = gamepaths.save_targets([names[p] for p in parts if names[p]])
         if targets is None:
             return self.save_all()
         written, backed, new = [], [], False
@@ -2122,7 +2122,8 @@ class MapEditorPanel:
                                        "seasons of it.")
             return False
         mine = next((f for _s, f in fam if f.upper() == (d.base or "").upper()), d.base)
-        targets = gamepaths.game_targets([f + ".rf4m" for _s, f in fam])
+        targets = gamepaths.game_targets([f + ".rf4m" for _s, f in fam])     # read from
+        dests = gamepaths.save_targets([f + ".rf4m" for _s, f in fam])        # write to
         if targets is None:
             messagebox.showerror(title, "Set the game folder first (Options… → General in the main window).")
             return False
@@ -2148,7 +2149,7 @@ class MapEditorPanel:
                 plans.append((season, f, None, None, None))
                 continue
             m = _rf4m.Rf4mMap.load(src)
-            plans.append((season, f, t, m, mapdiff.apply(ch, m)))
+            plans.append((season, f, dests[f + ".rf4m"], m, mapdiff.apply(ch, m)))
         lines = [f"Changes to {mine} since {origin}: {ch.summary()}.", ""]
         for season, f, _t, _m, rep in plans:
             if rep is None:

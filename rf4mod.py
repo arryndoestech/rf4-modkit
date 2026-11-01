@@ -94,9 +94,16 @@ def _loose_index() -> dict:
 
 
 def _out_or_game(out, src) -> pathlib.Path:
-    """-o/--out, else `src` itself -- backed up first (Options: Backups), like a GUI save."""
+    """-o/--out, else `src` itself -- backed up first (Options: Backups), like a GUI save; with
+    Options -> General -> Save edits to 00_mods, a game file goes to Bundle/00_mods/<name>."""
     if out:
         return pathlib.Path(out)
+    dst = gamepaths.save_path_for(src)
+    if dst != pathlib.Path(src):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if gamepaths.adopt_into_mods(dst):          # the game's copy moved there: keep it
+            gamepaths.backup_before_write(dst, True)
+        return dst
     gamepaths.backup_before_write(src)
     return pathlib.Path(src)
 

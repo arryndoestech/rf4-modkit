@@ -2624,7 +2624,8 @@ class CutsceneExplorer:
         in place (its rf3mc.<locale> / em.bin too, when they sit next to it). Otherwise each
         file goes over the copy the game loads from the game folder (the Bundle/** winner:
         a Bundle\\00_mods override, else the unpacked original), or into Bundle\\00_mods when
-        the game only has it inside a packed .mbundle."""
+        the game only has it inside a packed .mbundle -- or always into 00_mods with Options ->
+        General -> Save edits to 00_mods (gamepaths.save_targets)."""
         from rf4s_modkit import gamepaths
         names = ["rf3.mc", "em.bin"] + ["rf3mc.%s" % loc for loc in set(self.doc.dirty_locales())
                                         | {self.doc.locale}]
@@ -2635,22 +2636,21 @@ class CutsceneExplorer:
             for n in names[1:]:
                 if (pathlib.Path(opened).parent / n).is_file():
                     out[n] = pathlib.Path(opened).parent / n
-        bdir = gamepaths.find_bundle_dir()
-        if bdir is None:
+        rest = [n for n in names if n not in out]
+        t = gamepaths.save_targets(rest) if rest else {}   # Options -> General: 00_mods or not
+        if t is None:
             return out if opened is not None else None
-        idx = mbundle.loose_index(bdir)
-        for n in names:
-            if n in out:
-                continue
-            hits = idx.get(n)                      # exact case, like the game's index
-            out[n] = (bdir / hits[0]) if hits else (bdir / mbundle.MOD_FOLDER / n)
+        out.update({n: t[n] for n in rest})
         return out
 
     def _backup_once(self, target):
         """Back the file about to be overwritten up (its original once, the current file as a
-        previous version: gamepaths.backup_before_write). The original's path when made now."""
+        previous version: gamepaths.backup_before_write). The original's path when made now.
+        With Save edits to Bundle/00_mods on, the game's own copy is first moved to the 00_mods
+        target and always kept as the original (gamepaths.adopt_into_mods)."""
         from rf4s_modkit import gamepaths
-        return gamepaths.backup_before_write(target)
+        moved = gamepaths.adopt_into_mods(target)     # 00_mods mode: the game's copy moves first
+        return gamepaths.backup_before_write(target, moved)
 
     def restore_previous(self):
         """Put a backed-up rf3.mc / rf3mc.<locale> / em.bin back, then reload the editor."""

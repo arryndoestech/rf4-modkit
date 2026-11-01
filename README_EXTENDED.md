@@ -142,6 +142,14 @@ from disk is saved over itself, and a map tab saves through its map editor. *Ext
 copy anywhere else. To throw away a tab's changes, close it without saving. **Undo** (next to
 *Save*, or Ctrl+Z) takes back the current tab's last change, one step at a time, in every editor.
 
+**Save edits to Bundle\00_mods** (*Options…* → General, off by default) sends every save of a
+game file -- from every editor, and from `rf4mod.py` when it writes without `-o` -- to
+`Bundle\00_mods\<file name>`. The first save of a file moves the game's own copy there (the file
+as it was is always kept in `ModdingBackup`, even with backups off), so the game folder keeps one
+copy of each file and your mod is exactly what is in `00_mods`. To undo a file, use *Restore a
+previous version…*. The explorer always reads a file from the copy the game loads, `00_mods`
+included.
+
 ### Verifying the install
 
 ```bash

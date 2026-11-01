@@ -36,7 +36,7 @@ def _private_settings():
     for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden",
               "map_palette_favorites", "cutscene_editor", "theme", "backup_originals", "backup_previous",
               "backup_dir", "list_rows", "ui_scale", "cutscene_show_listing",
-              "cutscene_recent_instructions", "sticky_columns"):
+              "cutscene_recent_instructions", "sticky_columns", "save_to_mods"):
         d.pop(k, None)
     # the GUI tests expect a save to keep the original (backups are off by default for users)
     d["backup_originals"], d["backup_previous"] = True, 1
@@ -14350,6 +14350,41 @@ def test_map_editor_save_to_game():
         _check("a file the game only has packed goes to Bundle\\00_mods",
                tg["GenNOPE99.bin"] == game / "00_mods" / "GenNOPE99.bin"
                and tg["MAP_CITY_00.rf4m"] == game / "bundleMain" / "MAP_CITY_00.rf4m")
+        # Options -> General -> Save edits to Bundle\\00_mods: every save goes to 00_mods, the
+        # game's own copy stays as it is (and the CLI's default output follows)
+        _gp.set_setting(_gp.SAVE_TO_MODS_SETTING, True)
+        try:
+            st = _gp.save_targets(["MAP_CITY_00.rf4m", "SI_CITY_00.bin", "GenNOPE99.bin"])
+            game_map_before = (game / "bundleMain" / "MAP_CITY_00.rf4m").read_bytes()
+            p.maptab.msea.set("2 autumn"); p.maptab._commit_msea()
+            del box["msgs"][:]
+            ok3 = p.save_to_game()
+            mod_map = game / "00_mods" / "MAP_CITY_00.rf4m"
+            import rf4mod as _rf4cli
+            cli_dst = _rf4cli._out_or_game(None, game / "bundleMain" / "SI_CITY_00.bin")
+            outside = tmp / "elsewhere.bin"
+            mod_bk = gamepaths_backup = _gp.backup_path(mod_map)
+            mods_res = (st["MAP_CITY_00.rf4m"] == game / "00_mods" / "MAP_CITY_00.rf4m",
+                        st["GenNOPE99.bin"] == game / "00_mods" / "GenNOPE99.bin",
+                        "SI_CITY_00.bin" not in st[None],
+                        ok3, mod_map.is_file() and mod_map.read_bytes() == d._bytes("map"),
+                        not (game / "bundleMain" / "MAP_CITY_00.rf4m").exists()
+                        and mod_bk is not None and mod_bk.read_bytes() == game_map_before,
+                        _gp.save_targets(["MAP_CITY_00.rf4m"])["MAP_CITY_00.rf4m"] == mod_map,
+                        cli_dst == game / "00_mods" / "SI_CITY_00.bin",
+                        _gp.save_path_for(outside) == outside,
+                        not [t for t, _m in box["msgs"] if t == "Other copies"])
+        finally:
+            _gp.set_setting(_gp.SAVE_TO_MODS_SETTING, False)
+        _check("Save edits to Bundle\\00_mods: the first map save moves the game's copy into 00_mods (one "
+               "copy left, the file as it was kept in ModdingBackup) and saves there; a 00_mods copy is "
+               "saved over; nothing is warned about; the CLI's default output goes there too (moving "
+               "SI_CITY_00.bin the same way); a file outside the game folder is left alone",
+               mods_res == (True,) * 10, mods_res)
+        _check("with the switch off (the default) saves go over the copy the game loads (now the "
+               "00_mods one)",
+               _gp.save_targets(["MAP_CITY_00.rf4m"])["MAP_CITY_00.rf4m"] == mod_map
+               and _gp.save_to_mods() is False)
         fam = _mn.season_family(_mn.map_id_for_file("MAP_CITY_00_AUTUMN"))
         _check("season_family: Map_LoadById's ids 4..63 come in spring/summer/autumn/winter fours",
                [f for _s, f in fam] == ["MAP_CITY_00", "MAP_CITY_00_SUMMER", "MAP_CITY_00_AUTUMN",
@@ -18059,6 +18094,24 @@ def test_cutscene_editor_workflows():
             _ok = _ok and _back.read_bytes() == _orig_eng and _eng.read_bytes() == _orig_eng
             _check("Save overwrites the game folder's own files without asking; originals kept once in ModdingBackup",
                    _ok, f"saved={_saved} targets={sorted(_t)}")
+            # Options -> General -> Save edits to Bundle\\00_mods
+            _gp.set_setting(_gp.SAVE_TO_MODS_SETTING, True)
+            try:
+                _tm = cx.save_targets()
+                cx.set_text(lid, "selftest mods line")
+                _saved_m = cx.save_all()
+                _mod_eng = _tmpg / "Bundle" / "00_mods" / ("rf3mc.%s" % doc.locale)
+                _mbk = _gp.backup_path(_mod_eng)
+                _okm = (_saved_m is True and _tm["rf3mc.%s" % doc.locale] == _mod_eng
+                        and _tm["rf3.mc"] == _tmpg / "Bundle" / "00_mods" / "rf3.mc"
+                        and textdb.TextArchive.parse(_mod_eng.read_bytes()).text(lid) == "selftest mods line"
+                        and not _eng.exists() and _mbk is not None and _mbk.read_bytes() == _orig_eng)
+                cx.undo()
+            finally:
+                _gp.set_setting(_gp.SAVE_TO_MODS_SETTING, False)
+            _check("Save edits to Bundle\\00_mods: the Cutscene Editor moves the dialogue into 00_mods "
+                   "on its first save (the file as it was kept in ModdingBackup) and saves it there", _okm,
+                   f"saved={_saved_m} targets={_tm}")
         except FileNotFoundError as _e:
             _skip("save into the game folder", f"{_e} not extracted")
         finally:
