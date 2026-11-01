@@ -47,3 +47,6 @@ drafts/
 # opcode table generator and its output: local only
 OPCODE_TABLE.md
 gen_opcode_table.py
+
+# one-off reports (reviews, spreadsheets): local only
+outputs/
