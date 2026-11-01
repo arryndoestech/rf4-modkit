@@ -1797,7 +1797,7 @@ def test_param():
         t = nlcl.NlclTable.load(sn)
         r = t.row(15, "rf3TxtShopNpc_split2_1")     # char 2 slot 1 "Welcome!"
         ok = (t.entry_count == 27 * 14 and t.record_size == 16
-              and (r["Character"], r["Line kind"], r["Voice A"], r["Bubble time"]) == (2, 1, 1608, 90)
+              and (r["Character"], r["Line kind"], r["Voice"], r["Pose"], r["Duration"], r["Show text"])               == (2, 1, 0x01000648, 3, 90, 1)
               and all(t.get(i * 14, 0, "u16") == i + 1 for i in range(27)))
         _check("rf3TxtShopNpc dialogue meta", ok, "27 chars x 14 slots, voiced greeting")
     ne = next((p for p in files if p.name == "rf3TxtNameEntryBoard_split2_1.bin"), None)

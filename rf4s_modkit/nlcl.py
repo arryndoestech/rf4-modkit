@@ -1098,9 +1098,15 @@ FIELD_SCHEMAS = {
         # 12 sale-10%%, 13 sale-20%%. Content is written for the char's shop role
         # (keeper lines for keepers, customer lines otherwise — e.g. group 6 Bado
         # "What you want?", group 12 Lin Fa "Welcome!").
-        #   voice_a/voice_b: voice-cue pair (e.g. 1608/256), 0 = unvoiced line
-        #   emote:    portrait/expression selector (0xBC02 sentinel on no-money)
-        #   duration: bubble display frames (90/120/180)
+        # Re-read 2026-11-01: the shop loader (RF4S.exe+0x675D0) copies each line into a 28-byte
+        # slot per line kind and rfShopNpc_Step3_TickReactionStateAndSpeech (+0x677B0) plays it:
+        # +4 is ONE u32 voice id (played through the shop task's sound hook; the old "Voice B"
+        # 256 was its high half, ids 0x0100xxxx), +8 / +9 are two bytes (the portrait's pose,
+        # passed to the portrait show call +0x3BFD0, and its face, set by +0x3C080 -- the old
+        # u16 "Expression" read 0xBC02 = face 188 pose 2), +10 counts down while the reaction
+        # lasts (the shopkeeper returns to idle at 0), +12 is a byte: non-zero = the bubble shows
+        # this line's text, 0 = it is emptied; +13 / +14 are signed bytes the loader copies and
+        # nothing reads; +15 is not read.
         # ADD ROW (2026-09-19): Schedule_LoadDailyEntriesFromArchive16343 (RF4S.exe+0x675A0)
         # walks ALL records up to the file count (u32 @+24), matching char_id-1 against the
         # NPC and dispatching on `slot` 1..13; it stores the record index, which selects the
@@ -1109,11 +1115,12 @@ FIELD_SCHEMAS = {
         "fields": [
             ("Character", 0, "u16"),        # who says it
             ("Line kind", 2, "u16"),        # when it is said (greeting, thanks, no money ...)
-            ("Voice A", 4, "u16"), ("Voice B", 6, "u16"),  # the voice clip pair (0 = no voice)
-            ("Expression", 8, "u16"),       # the portrait expression
-            ("Bubble time", 10, "u16"),     # how long the speech bubble stays, in frames
-            ("Flag", 12, "u16"),
-            ("unused 14", 14, "u16"),
+            ("Voice", 4, "u32"),            # the voice clip played with the line (0 = no voice)
+            ("Pose", 8, "u8"),              # the speaker portrait's pose (0..3 in the shipped lines)
+            ("Face", 9, "u8"),              # the portrait's face (188 on the no-money lines, else 0)
+            ("Duration", 10, "u16"),        # how long the reaction lasts before the shopkeeper goes back to idle (0 = not used)
+            ("Show text", 12, "u8"),        # 1 = the speech bubble shows this line's text, 0 = it is emptied
+            ("unused 13", 13, "s8"), ("unused 14", 14, "s8"), ("unused 15", 15, "u8"),
         ],
     },
     "rf3TxtNameEntryBoard_split2_1": {
@@ -1565,7 +1572,6 @@ FLAG_FIELDS = {
         0x40: "Staff level / quality bonuses", 0x80: "Accessory level / quality bonuses"}},
     "rf3ScheduleID": {"Flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
                                 0x8: "Ignore crowding"}},
-    "rf3TxtShopNpc_split2_1": {"Flag": {}},
     "rf4TxtQuestRequestDetailFormat_split2_1": {"Flag": {}},
 }
 
@@ -1629,7 +1635,7 @@ _SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
 # Named values of plain fields (shown as "Name (value)" and picked from a list).
 VALUE_NAMES = {
     "rf3TxtCalendar_split2_1": {"Season": _SEASONS, "Birthday of": {30: "(festival)"}},
-    "rf3TxtShopNpc_split2_1": {"Line kind": {
+    "rf3TxtShopNpc_split2_1": {"Show text": {0: "no", 1: "yes"}, "Line kind": {
         0: "unused", 1: "greeting", 2: "browse", 3: "ponder", 4: "decide", 5: "confirm",
         6: "thanks", 7: "come again", 8: "decline", 9: "no space", 10: "no money",
         11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
