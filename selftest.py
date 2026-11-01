@@ -18385,6 +18385,17 @@ def test_asset_explorer_gui():
         _check("the category and the text filter combine (Maps + 'city' = town maps only)",
                hits and all("city" in src.entries[i][0].lower() and src.categories()[i] == "map" for i in hits),
                f"{len(hits)} hits")
+        # 2026-11-01: * is a wildcard over the whole file name (or path, with a /)
+        app.cat_var.set(app.ALL_CATS)
+        app.filter_var.set("rf3*.bin")
+        app._apply_filter_now()
+        wild = sorted(app._index[k] for g in t.get_children() for k in (t.get_children(g) or [g])
+                      if k in app._index)
+        want = sorted(i for i, e in enumerate(src.entries)
+                      if (lambda b: b.startswith("rf3") and b.endswith(".bin"))(e[0].rsplit("/", 1)[-1].lower()))
+        _check("search: rf3*.bin lists exactly the files named rf3....bin (a plain word still "
+               "matches any part of a name)", wild and wild == want, f"{len(wild)} vs {len(want)}")
+        app.cat_var.set(maps)
         # Group maps by area: a header per in-game area name, the maps under it, open ones kept
         app.filter_var.set("")
         app.group_maps_var.set(True)

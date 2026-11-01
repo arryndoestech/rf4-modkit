@@ -171,6 +171,23 @@ _PLAYER_MODELS = {"NPC_PLAYER_00": "Lest (player)", "NPC_PLAYER_01": "Frey (play
 _MODEL_OWNERS = None
 
 
+def _name_matcher(text):
+    """The file-browser search as a test on a lower-cased entry name ("path/name.ext", maybe
+    followed by "  owner"): plain text matches any part of it; text with * is a wildcard pattern
+    (* = any run of characters) that must match a whole file name -- or the whole path when it
+    holds a / -- so rf3*.bin finds every rf3....bin and *.eng every .eng file."""
+    q = text.strip().lower()
+    if "*" not in q:
+        return lambda name: q in name
+    rx = re.compile(".*".join(re.escape(part) for part in q.split("*")), re.S)
+
+    def match(name):
+        path, _, owner = name.partition("  ")
+        return bool(rx.fullmatch(path if "/" in q else path.rsplit("/", 1)[-1])
+                    or (owner and rx.fullmatch(owner)))
+    return match
+
+
 def _model_owner(file_name):
     """Who wears a .model -- 'Frey (player)', 'Clorica', 'Orc / Orc Archer' -- from the character
     templates (refdata/char_models.json: rf3NpcParam +272, resolved the way the game loads it,
@@ -1005,6 +1022,9 @@ class App:
         fe = ttk.Entry(filters, textvariable=self.filter_var, width=18)
         fe.grid(row=0, column=1, sticky="ew", pady=2)
         fe.bind("<Return>", lambda _e: self._apply_filter_now())
+        Tip(fe, "Type part of a file name. * matches anything: rf3*.bin = every file whose name "
+                "starts with rf3 and ends in .bin; with a / it matches the whole path "
+                "(bundleMain/*.eng).")
         ttk.Label(filters, text="Show:").grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
         self.cat_cb = ttk.Combobox(filters, textvariable=self.cat_var, state="readonly", width=18,
                                    values=[self.ALL_CATS])
@@ -1673,7 +1693,7 @@ class App:
         if not self.source:
             self.count_lbl.config(text="")
             return
-        flt = self.filter_var.get().lower()
+        flt = self.filter_var.get().strip().lower()
         n = len(self.source.entries)
         if len(self.cat_cb.cget("values")) <= 1:
             self._fill_cat_box()
@@ -1684,7 +1704,8 @@ class App:
         if flt:
             # Flat search across ALL groups, capped.
             lower = self._lower_names()
-            hits = self._sorted([i for i in keep if flt in lower[i]])[:self.FILTER_CAP]
+            hit = _name_matcher(flt)
+            hits = self._sorted([i for i in keep if hit(lower[i])])[:self.FILTER_CAP]
             shown = len(hits)
             by_group = {}
             for i in hits:
