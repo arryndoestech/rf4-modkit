@@ -77,7 +77,6 @@ rf4s-modkit/
 ├── script_explorer.py   # the cutscene editor on its own
 ├── optest.py            # in-game tests of cutscene instructions (see below)
 ├── CUTSCENE_OPCODES.md  # every cutscene instruction, its arguments and values
-├── OPCODE_TABLE.md      # the same names as one table (from refdata/opcode_table.json)
 ├── opcodes_list.csv     # flat list of all 702 instructions + the control opcodes
 ├── gen_*.py             # regenerate the reference files above and the refdata/ tables
 ├── selftest.py          # checks the toolkit against your game
