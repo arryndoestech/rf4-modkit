@@ -979,7 +979,6 @@ class App:
         self._save_btn.pack(side="left", padx=2, pady=3)
         self._undo_btn = ttk.Button(bar, text="Undo", command=self.cmd_undo, state="disabled")
         self._undo_btn.pack(side="left", padx=2, pady=3)
-        ttk.Button(bar, text="Options…", command=self.cmd_options).pack(side="left", padx=2)
         # shown only while something other than the game is listed (see load_source)
         self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
         from guiutil import Tip
@@ -1000,10 +999,12 @@ class App:
         self.export_btn.pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
-        # Help (every shortcut) at the very right
+        # Help (every shortcut) at the very right, Options beside it
         import shortcuts_help
         hb = ttk.Button(bar, text="Help", command=lambda: shortcuts_help.open_help(self.root))
         hb.pack(side="right", padx=(2, 4))
+        self._options_btn = ttk.Button(bar, text="Options…", command=self.cmd_options)
+        self._options_btn.pack(side="right", padx=2)                 # just left of Help
         from guiutil import Tip as _Tip
         _Tip(hb, "Every keyboard shortcut and mouse gesture.")
         self._help_btn = hb
