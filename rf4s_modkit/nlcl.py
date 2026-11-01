@@ -1137,31 +1137,19 @@ FIELD_SCHEMAS = {
         "fields": [],
     },
     "rf4TxtItemParameter_split2_1": {
-        # 211 x 84-byte FORMAT-ARGUMENT tables for the item-parameter UI strings of
-        # rf4TxtItemParameter_split2_2.<locale> (decoded 2026-08-31). Each record is
-        # a BYTE ARRAY (not fixed fields): one parameter-source id per %-placeholder
-        # of the paired format string, 0-padded (e.g. rec 150 "[%sSteamed] %s..." ->
-        # bytes 82 01 02 03 09 0e ...). Simple label strings have all-zero records.
-        # Formatter traced 2026-08-31: the unrolled item-info builders at
-        # RF4S.exe+0x326E0/+0x33B70 compute rdi = string_idx*0x54 and read the arg
-        # bytes from the record TAIL backwards ([archive + rdi + 0x6F], 0x6E, ...),
-        # resolving each through the arg resolver at +0x38DD0 (installed into the
-        # UI interface slots at +0x306E0) — a TWO-LEVEL switch on id 1..130:
-        #   1        per-unit quality/level list from the inventory slot
-        #   2 / 3    stack gold value via Item_ComputeStackGoldValue (+0x454A0)
-        #   4/5/6    item-db getters +0x184D20/+0x184D70/+0x184DB0
-        #   7,8,9,14,15,51,121,129 individual handlers (+0x166180, +0x42190, ...)
-        #   71..78   one shared handler +0x38D60 parameterized by id (the 8-stat/
-        #            elemental "%d%" family, e.g. "Dark Res %d%")
-        #   130 (0x82) the conditional prefix flag ("[%sSteamed]")
-        #   10..128 (rest) second-level table +0x39F18: text-template + numeric
-        #            stat pairs read from the 0x400E text archive + a stat array.
-        # ADD ROW (2026-09-19): the 60 reader sites in BagMenu_TickEquipSpriteSub
-        # (RF4S.exe+0x326E0..+0x33018) each load archive 16344 and address a HARD-CODED
-        # record index (rdi = string_idx*0x54), so a 212th record/line pair can never be
-        # selected -- the row count is irrelevant to the engine.
+        # The item detail window's layout: row N goes with line N of
+        # rf4TxtItemParameter_split2_2.<locale> (the same archive holds the window's text pieces in
+        # lines 0..139 and the layouts in 140..210). Each of the 84 bytes picks what fills one %s of
+        # that line, in order: byte 1 the first %s, byte 2 the second ... 0 = nothing.
+        # Checked 2026-11-01: rf4DetailWindow_TickRefresh (RF4S.exe+0x33A20) and BagMenu_TickEquip
+        # SpriteSub (+0x32590) each read all 84 bytes of the row DetailWindow_GetCurrentRecordIdx
+        # gives (the row the item's kind picks) and pass each one to DetailWindow_RenderRowByKind
+        # (+0x38DD0), which renders it with a text piece of the same archive (ITEM_DETAIL_IDS).
+        # The values it shows come from the item's rf3UseItemParam, rf3ItemEquipmentParam and
+        # rf3ItemStrengthening records (the window copies all three); 40 and 131..255 show nothing.
+        # The row a kind of item uses is fixed in the exe, so added rows are never shown.
         "grow": "fixed:211",
-        "fields": [],
+        "fields": [(f"Detail {k}", k - 1, "u8") for k in range(1, 85)],
     },
     "Fishing_rate_fish_Spring": {
         # 38 x 88 B (22 dwords) fish-SPECIES spawn-weight table, archive 14803 (14804 =
@@ -1588,6 +1576,42 @@ REF_FIELDS = {
     "rf3NpcParam": {**{f"Drop {k}": "item" for k in (1, 2, 3, 4)}, "Produce": "item",
                     "Home map": "room", "Transforms into": "char"},
 }
+# What each byte of rf4TxtItemParameter_split2_1 shows (DetailWindow_RenderRowByKind, RF4S.exe
+# +0x38DD0): an item's own values, or one dword of its rf3UseItemParam ("Use item"),
+# rf3ItemEquipmentParam ("Equipment") or rf3ItemStrengthening ("Upgrade") record.
+_DETAIL_SOURCE = {
+    **{i: ("rf3UseItemParam", d) for i, d in (
+        (10, 0), (11, 2), (12, 1), (13, 3), (14, 4), (15, 5), (16, 6), (17, 11), (18, 7), (19, 12),
+        (20, 8), (21, 13), (22, 9), (23, 14), (24, 10), (25, 15), (48, 16), (49, 18), (50, 17))},
+    **{26 + k: ("rf3UseItemParam", 33 + k) for k in range(7)},       # element resists
+    **{33 + k: ("rf3UseItemParam", 19 + k) for k in range(7)},       # status resists
+    **{41 + k: ("rf3UseItemParam", 26 + k) for k in range(7)},       # status chances
+    51: ("rf3ItemEquipmentParam", 0),                                # shown as its element
+    **{52 + k: ("rf3ItemEquipmentParam", 3 + k) for k in range(39)},  # 52..90
+    **{91 + k: ("rf3ItemStrengthening", 1 + k) for k in range(8)},    # 91..98
+    **{99 + k: ("rf3ItemStrengthening", 10 + k) for k in range(3)},   # 99..101
+    **{102 + k: ("rf3ItemStrengthening", 14 + k) for k in range(19)},  # 102..120
+    121: ("rf3ItemStrengthening", 0),
+    **{122 + k: ("rf3ItemStrengthening", 67 + k) for k in range(7)},  # element resists
+}
+_DETAIL_PREFIX = {"rf3UseItemParam": "Use item", "rf3ItemEquipmentParam": "Equipment",
+                  "rf3ItemStrengthening": "Upgrade"}
+
+
+def _detail_names() -> dict:
+    out = {0: "", 1: "Level of each one in the stack", 2: "Sell price", 3: "Buy price",
+           4: "Days to grow", 5: "Harvest yield", 6: "Sell price of the harvest",
+           7: "Watering can: water left", 8: "Size (fish)", 9: "Unshipped mark",
+           129: "Name of the item it is made from", 130: "Star mark"}
+    for i, (tab, d) in _DETAIL_SOURCE.items():
+        f = next(n for n, o, _t in FIELD_SCHEMAS[tab]["fields"] if o == 4 * d)
+        out[i] = f"{_DETAIL_PREFIX[tab]}: {f}"
+    out[51] = "Equipment: element"
+    out[121] = "Upgrade: Difficulty"
+    return dict(sorted(out.items()))
+
+
+ITEM_DETAIL_IDS = _detail_names()
 _SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
 # Named values of plain fields (shown as "Name (value)" and picked from a list).
 VALUE_NAMES = {
@@ -1597,6 +1621,7 @@ VALUE_NAMES = {
         6: "thanks", 7: "come again", 8: "decline", 9: "no space", 10: "no money",
         11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
     "rf3TxtQuest_split3_1": {"Client": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
+    "rf4TxtItemParameter_split2_1": {f"Detail {k}": ITEM_DETAIL_IDS for k in range(1, 85)},
     # 388 of the 392 rows hold 0 (char 0 is the player): no other form
     "rf3NpcParam": {"Transforms into": {0: "(none)"},
                     "Motion set": {0: "Frey's", 1: "Lest's"}},   # the game tests it nonzero
@@ -1610,7 +1635,10 @@ ROW_NAMES = {
     "Fishing_rate_fish_Spring": "fish",
     "rf3Parameter": "level",
     "Fishing_rate_lv_Spring": "bracket",
+    "rf4TxtItemParameter_split2_1": "text",          # row N = line N of the paired text file
 }
+# The TEXT archive whose line N goes with row N, for tables whose row kind is "text".
+PAIRED_TEXT = {"rf4TxtItemParameter_split2_1": "rf4TxtItemParameter_split2_2"}
 FISH_RARE_ITEMS = (1017, 1018, 1019, 893, 894, 934)
 
 
@@ -1717,6 +1745,10 @@ def schema_notes(stem: str) -> tuple[str, dict]:
             else:
                 last = None
             k += 1
+    if key == "rf4TxtItemParameter_split2_1":
+        for k in range(1, 85):
+            notes.setdefault(f"Detail {k}", f"What fills %s number {k} of this row's text line "
+                                            "(blank = nothing).")
     if key == "rf3ItemStrengthening":           # its field notes live in the strengthening module
         from . import strengthening
         for f, doc in strengthening.DOC.items():

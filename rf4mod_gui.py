@@ -6154,6 +6154,8 @@ class App:
             if n in pick_f:
                 if n in item_f and raw_v == 0:
                     return ""                                   # item 0 = an empty slot
+                if vnames[n].get(raw_v, None) == "":
+                    return ""                                   # a value named "" = nothing
                 nm = vnames[n].get(raw_v) or (names_of(ref[n]).get(raw_v) if ref[n] else None)
                 return nm or (f"#{raw_v}" if ref[n] else str(raw_v))
             bits = nlcl.flag_bits(stem, n)
@@ -6195,7 +6197,23 @@ class App:
                 return f"Lv {i} → {i + 1}"
             if rk == "bracket":
                 return f"size bracket {i} · Lv {i + 1}" + (" (smallest)" if i == 0 else "")
+            if rk == "text":
+                return paired_line(i)
             return ""
+        paired = {}
+
+        def paired_line(i):
+            """Line i of the paired TEXT archive (English), on one line, cut to 70 characters."""
+            if "lines" not in paired:
+                from rf4s_modkit import textdb
+                raw = _find_extracted(nlcl.PAIRED_TEXT.get(stem, "") + ".eng")
+                try:
+                    paired["lines"] = textdb.TextArchive.parse(raw).entries if raw else []
+                except Exception:
+                    paired["lines"] = []
+            ln = paired["lines"]
+            s = ln[i].decode("utf-8", "replace").replace("\n", " / ").strip() if i < len(ln) else ""
+            return s if len(s) <= 70 else s[:69] + "…"
         name_col = bool(rk) or bool(name_off_typ and name_field not in pick_f)
 
         # ---- extra columns of particular tables -------------------------------------------

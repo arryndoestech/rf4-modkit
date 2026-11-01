@@ -1355,6 +1355,16 @@ def test_bin_editors():
         res["str"] = (row["ATK"], row["Stun"], ticked[:1], named, tv.set("1125", "name"),
                       "ATK" in sheet and "quality tier" in sheet, "1107" not in tv.get_children(),
                       len(tv["columns"]) >= 76)
+        # the item detail layouts: rows named by their text line, each byte by what it shows
+        d = (B / "rf4TxtItemParameter_split2_1.bin").read_bytes()
+        app._show("rf4TxtItemParameter_split2_1.bin", d); doc = app._doc
+        tv = doc._param_tree
+        shown = (tv.set("150", "name")[:12], tv.set("150", "Detail 1"), tv.set("150", "Detail 3"),
+                 tv.set("150", "Detail 50"), tv.set("187", "Detail 6"), len(tv["columns"]) >= 85)
+        doc._param_cells.set("150", "Detail 50", "Sell price")
+        put = nlcl.NlclTable(doc.cur_data).get(150, 49, "u8")
+        doc._param_cells.set("150", "Detail 50", "(none) (0)")
+        res["itemparam"] = shown + (put, doc.cur_data == d)
         # gift categories: add then remove an item
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
@@ -1413,6 +1423,11 @@ def test_bin_editors():
            "hidden by default, all 74 fields are columns",
            res.get("str") == (123, 1024, [0x40], True, "quality tier >= 200, ATK family", True,
                               True, True), res.get("str"))
+    _check("rf4TxtItemParameter_split2_1 in the standard table: rows show their text line, the 84 "
+           "Detail bytes show what they fill (Star mark, Sell price, Upgrade: Difficulty; 0 blank), "
+           "a picked name writes its id and (none) restores the file",
+           res.get("itemparam") == ("[%sSteamed] ", "Star mark", "Sell price", "",
+                                    "Upgrade: Difficulty", True, 2, True), res.get("itemparam"))
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
            "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
 
