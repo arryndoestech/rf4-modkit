@@ -5314,6 +5314,21 @@ class App:
         body = ttk.PanedWindow(doc.content, orient="vertical"); body.pack(fill="both", expand=True, padx=6)
         left = ttk.Frame(body); body.add(left, weight=1)
         right = ttk.Frame(body); body.add(right, weight=1)
+        split = {"r": 0.5}                          # each list gets half the height; a dragged
+                                                    # divider keeps its share when the window resizes
+
+        def keep_split(_e=None):
+            h = body.winfo_height()
+            if h > 40:
+                body.sashpos(0, int(h * split["r"]))
+
+        def dragged(_e):
+            h = body.winfo_height()
+            if h > 40:
+                split["r"] = min(0.9, max(0.1, body.sashpos(0) / h))
+        body.bind("<Configure>", keep_split, add="+")
+        body.bind("<ButtonRelease-1>", dragged, add="+")
+        doc._gift_split = body                                                  # (selftest)
 
         ct = ttk.Treeview(left, columns=("n", "items", "liked", "disliked"), show="headings",
                           selectmode="browse", height=11)
