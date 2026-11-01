@@ -4547,23 +4547,11 @@ class App:
         skill_names = [gamenames.name("skills", s) or f"skill {s}" for s in sids]
         cap99 = set(range(17, 21)) | set(range(26, 33))
         stops_at_99 = bool(sids) and all(s in cap99 for s in sids)
-        some_99 = any(s in cap99 for s in sids)
 
         head = ttk.Frame(doc.content, padding=(6, 4)); head.pack(fill="x")
         ttk.Label(head, text="Skill XP curve", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         used = ", ".join(skill_names) if skill_names else "(no skill found)"
         ttk.Label(head, wraplength=600, justify="left", text=f"Used by: {used}").pack(anchor="w", fill="x")
-        if stops_at_99:
-            cap_note = "These skills stop at level 99, so the last row is never used."
-        elif some_99:
-            cap_note = ("The resist skills and crafting skills stop at level 99; the others keep going to "
-                        "999, and every level past 99 costs the last row's XP.")
-        else:
-            cap_note = "These skills go up to level 999: every level past 99 costs the last row's XP."
-        ttk.Label(head, wraplength=600, justify="left", foreground="#666", text=(
-            "Each row is the XP a skill needs at that level to reach the next one. " + cap_note +
-            " Click an XP value and type to change it (with several levels selected, all of them "
-            "change), or use Scale.")).pack(anchor="w", fill="x")
         head.bind("<Configure>", lambda e: [w.config(wraplength=max(200, e.width - 16))
                                              for w in head.winfo_children() if isinstance(w, ttk.Label)
                                              and w.cget("wraplength")], add="+")
