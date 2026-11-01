@@ -207,18 +207,22 @@ files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or 
 Textures & images, 3D models, Animations, Maps, Monster spawns (the `Gen` monster generators),
 Gathering spots (the `SI_` daily pick-up item pools), Monster AI, Attack timelines, Game data
 tables, Text & dialogue, Scripts & events, UI, Shaders, …) and a **Size**. The **Show:**
-box next to Filter lists only one category, with its file count, and combines with the
-text filter (Maps + `city` = the town maps). Click a column header (Asset, Category, Size)
+box under **Search** lists only one category, with its file count, and combines with the
+search (Maps + `city` = the town maps). The search matches any part of a name; with `*` it
+is a wildcard over the whole file name (`rf3*.bin`; with a `/`, over the whole path:
+`bundleMain/*.eng`). Click a column header (Asset, Category, Size)
 to sort by it; click again to reverse (Size ▼ = biggest first). Categories come from the
 file names (`rf4s_modkit/assetcat.py`), so nothing has to be opened to sort 38,000 files.
-**Group maps by area** (on by default) lists the `.rf4m` maps under one header per in-game
+**Group maps by area** (*Options…* → General, on by default) lists the `.rf4m` maps under one header per in-game
 area, which opens and closes (all of `MAP_DUNG_M*` under **Rune Prana**, every street of the
 town under **Selphia**, a shop's upper floor with the shop, a dungeon's entrance and depths with
 the dungeon); untick it for the plain file list. The choice is
 kept in `settings.json` and shared with the standalone map editor's map list (`map_explorer.py`),
 which groups its maps the same way.
 
-**Editing .bin files.** Every game `.bin` can be changed from the explorer: the data tables in the table editor, **AI scripts** (`AI_*.bin`) by editing their listing and pressing *Assemble* (the same assembler as `rf4mod ai asm`; every shipped script rebuilds byte-exact), the **skill XP curves** (`rf3ParamSkillExp*`: set one level or scale every level to a percentage), **rf3ItemStrengthening** (the standard table with all 74 fields, Effects as tick boxes, and the selected row's bonuses and item-id behaviour in a sheet under it), **rf3PresentCategory** (add / remove an item of a gift category), em.bin through *Open Event Manager…*, and rf3RouteResult by *Recompute from rf3route.bin* (it is derived from the route graph). The tables are edited by typing in them (click a cell and type; a column heading sorts). *Save* (Ctrl+S) writes the file.
+**Editing .bin files.** Every game `.bin` can be changed from the explorer: the data tables in the table editor, **AI scripts** (`AI_*.bin`) by editing their listing and pressing *Assemble* (the same assembler as `rf4mod ai asm`; every shipped script rebuilds byte-exact), the **skill XP curves** (`rf3ParamSkillExp*`: type a level's XP, scale the selected levels or all of them, or paint the curve on its chart), **rf3ItemStrengthening** (the standard table with all 74 fields, Effects as tick boxes, and the selected row's bonuses and item-id behaviour in a sheet under it), **rf3PresentCategory** (add / remove the items of a gift category; a category holds items only, since the game never follows a category inside one), the **NPC walking routes** (`rf3route.bin`: points and links typed in place, *Add point* / *Add link* / *Remove*), em.bin through *Open Event Manager…*, and rf3RouteResult by *Recompute from rf3route.bin* (it is derived from the route graph). The tables are edited by typing in them (click a cell and type; a column heading sorts). *Save* (Ctrl+S) writes the file.
+
+**Tables.** A table's row number and name stay at the left while you scroll sideways (*Options…* → General → *Keep row names in view when scrolling sideways*, on by default). Hovering a column heading explains the field; *About this table…* shows the table's notes. A field that holds an id shows the name (an item, a character, a map …) and is picked from a searchable list; a bit set opens a tick box per bit (only one such window at a time); a share is shown as a percentage (`150%`), an angle in degrees, a key of the name-entry board as its character. *Show unused columns* reveals the bytes the game never reads.
 
 **Editing text.** Every text file opens in a text editor: the TEXT archives, i.e. all
 `rf3Txt*` / `rf4Txt*` files and the cutscene dialogue `rf3mc.<locale>`, plus the
@@ -263,7 +267,7 @@ background; the Windows title bars turn dark too.
 
 **Help.** The *Help* button at the right end of the explorer toolbar lists every keyboard
 shortcut and mouse gesture, one tab per area (Explorer, Map editor, Cutscene Editor,
-Event Manager & text).
+Event Manager & text); *Options…* sits beside it.
 
 **Dropdowns.** In every dropdown of the toolkit, Up / Down step to the previous / next value and apply it at once (Alt+Down opens the list).
 
@@ -305,20 +309,24 @@ Selecting an asset shows a **type-aware viewer**:
 |---|---|
 | `.texture` | decoded image with ½×/1×/2×/4× zoom; **Export View → PNG**; **Replace…** (from a PNG; own format; a PNG of another size asks first, showing old → new and what it does in game) |
 | `.model` | **Textures** tab: every embedded BNTX card with preview / Export / Export all; **Replace texture…** swaps the selected card from a PNG (in place at the same size; another size asks first, then rebuilds the `.model`) · Structure tab |
-| `rf3mc.*` / TEXT | searchable string table; **Export → JSON** |
+| `rf3mc.*` / TEXT | the text editor (see *Editing text*); `rf3mc.<locale>` also points to the Cutscene Editor (*Open the Cutscene Editor*); **Export → JSON** |
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON**. `Manifest.plist`: every bundle's files with their size and offset, a **Filter** on the file name, and **Copy** (selected rows, or all shown: bundle / file / size / offset, tab-separated) |
 | `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*; its sidebar gains an **Events** tab: the map's cutscene scenes, opened in the Cutscene editor) · Chunks · read-only Hex |
-| `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
+| `.bin` (AIBN) | editable listing with the verified operand meanings; **Assemble** rebuilds the file |
 | `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save** (Ctrl+S) writes the file |
-| `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
+| `rf3NpcParam.bin` | the table editor with every field of every character, and the selected character's **sheet** under it (what the id is, drops with item names, element affinities %, status resists, AI file) |
 | `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. |
-| `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |
+| `rf3*.bin` (NLCL) | the table editor (see *Tables*); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown under the table. `rf4TxtItemParameter_split2_1` (the item detail window's layouts) adds a *used by* column: the item category behind each layout row |
+| `rf3CropParam.bin` | crops: the growth / soil columns, the crop's name next to its number, *Grows in* season tick boxes, *planted crops only* filter |
+| `rf3TxtQuest_split3_1.bin` | requests: *Client* and *Request kind* (the board's "needed / reward" line), both picked by name |
+| `rf3ParamSkillExp*.bin` | XP curve: *Level*, *XP to next level*, *Total XP*, a chart (click a bar, or *Paint* and drag), Set / Scale |
+| `rf3PresentCategory.bin` | gift categories: the list (*Items*, *Liked by*, *Disliked by*) above the selected category's items (friendship when loved / liked), each half the height |
 | `em.bin` / `emdeb.bin` | identified + **Open Event Manager…** (the Cutscene editor's Event Manager window: value edits, add / remove entries, conditions and actions) |
 | `.strings` | key/value table |
 | `as_atk_*.bin` | attack timeline: rendered per-frame view + **Edit** tab (canonical listing, *Assemble & apply*) |
-| `rf3PresentNpc*.bin` / `rf3MonsterPresent.bin` | gift preferences / taming foods with **set / signature / remove** controls and Save |
-| `rf3Schedule.bin` | per-(NPC, state) itineraries with **apply / add / remove stop** controls and Save |
-| `rf3route.bin` / `rf3RouteResult.bin` | navigation graph tree (rooms → nodes → edges), **path query**, JSON export/import, next-hop matrix rebuild |
+| `rf3PresentNpc*.bin` / `rf3MonsterPresent.bin` | gift preferences / taming foods, edited in the table: a gift's tier (loved / liked / disliked / the -10 signature dislike / neutral), item and friendship points, the last row adds one, Delete removes; a species' four *Item* / *Tame bonus* slots |
+| `rf3Schedule.bin` | NPC daily routines: pick the NPC and the kind of day; a stop's time, spot kind and random departure are typed in the table; **Add stop**, **Remove stop**, *Copy this routine to…*; the spots of the selected stop's kind below |
+| `rf3route.bin` / `rf3RouteResult.bin` | NPC walking routes: rooms → points → links, edited in place (X / Y / random offset of a point, where a link goes and its cost; *Add point*, *Add link*, *Remove*, Undo); points in rooms 161 and up are flagged (the game never routes there); **Path** query, JSON export / import, *Rebuild rf3RouteResult.bin…* (needed after every route edit) |
 | `.psbData` / `.emtbytes` | E-mote portrait atlas (zoomable, Export PNG) + PSB summary |
 | `.model` / `.bfskl` | NN container structure |
 | `.ogg` `.wav` `.aif` `.webm` `.ttf` `.ttc` (sounds, videos, fonts) | **Open in default app** (a copy goes to the temp folder and opens in Windows' player / font viewer) + hex preview |
@@ -603,8 +611,8 @@ the old body used are dropped. The
 which keys, the ordering caveat), its keys and a body (for a trigger with a box -- a player region,
 a sub-event or story region scene -- *📍 Draw the box…* drags it on the map, the map's other boxes
 dashed); a note warns when a new trigger would
-**shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
-triggers. Keys are checked as you type: a trigger that could never run is refused (exactly
+**shadow** the bank's existing scene of that type. *Remove* unregisters the selected trigger;
+its keys are edited in the pane beside the list (*Apply*). Keys are checked as you type: a trigger that could never run is refused (exactly
 the keys of a trigger checked before it; a type-2 event key outside 1..65535 or -1 -- spawned
 event actors carry a 16-bit key, and 0 marks a removed one; anything outside signed 32-bit),
 and odd keys warn (type-2 keys 1..47, which ops that take an actor read as villagers -- use
@@ -1025,8 +1033,8 @@ from Blender.
 | Event Manager triggers | `em.bin`, `emdeb.bin` | `rf4mod em` | ✅ conditions/actions decode; in-place edit; **structural**: add / remove entries, condition terms and actions from a readable spec (`em add / remove / add-cond / remove-cond / add-action / remove-action`; the container is rebuilt, stock re-serialises byte-exact) |
 | Skill XP curves | `rf3ParamSkillExp*.bin` | `rf4mod skill` | ✅ decode + `skill set FILE LEVEL XP` / `--scale PCT` (every level) |
 | Monster encounter tables | `Gen*.bin` (NLCL) | `rf4mod gen` | ✅ full: gates / weights / rosters / positions, add & remove gates and monsters (rebuilds the file + footer; all 690 stock files round-trip byte-exact) |
-| Game-data param tables | `rf3*/rf4*.bin` (NLCL) | `rf4mod param` | ✅ named fields for items, crops, recipes, skills, fishing, schedules...; add / remove rows (`param info` says whether the game reads an added row); fixed-point fields as percentages (`150%`); flag fields by name (`param set rf3ParamMagic.bin 1 "flags=+Ignore DEF,-Fire"`) |
-| NPC gift preferences | `rf3PresentNpc01..27.bin`, `rf3PresentCategory.bin` | `rf4mod gift` | ✅ move items between loved / liked / disliked / neutral, set the FP code and the one −10 "signature" dislike, add range / category entries; the file is rebuilt (sub-list offsets + NLCLINK tail), all 28 stock tables round-trip byte-exact |
+| Game-data param tables | `rf3*/rf4*.bin` (NLCL) | `rf4mod param` | ✅ named fields for items, crops, recipes, skills, fishing, schedules...; add / remove rows (`param info` says whether the game reads an added row); fixed-point fields as percentages (`150%`); flag fields by name (`param set rf3ParamMagic.bin 1 "Flags=+Ignore DEF,-Fire"`) |
+| NPC gift preferences | `rf3PresentNpc01..27.bin`, `rf3PresentCategory.bin` | `rf4mod gift` | ✅ move items between loved / liked / disliked / neutral, set the FP code and the one −10 "signature" dislike, add range / category entries (a category itself holds items only); the file is rebuilt (sub-list offsets + NLCLINK tail), all 28 stock tables round-trip byte-exact |
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
@@ -1195,10 +1203,10 @@ python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng            # rea
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)
 python rf4mod.py script set-speaker rf3.mc --bank 1 --pc 0x08c2 --speaker Vishnal --side right -o new.mc  # change who speaks
-python rf4mod.py script set-val rf3.mc --bank 1 --pc 0x3478 --index 0 --value 258 -o new.mc  # change an arg value / EVAL value / choice option's line id
+python rf4mod.py script set-val rf3.mc --bank 1 --pc 0x847c --index 0 --value 600 -o new.mc  # change an arg value / EVAL value / choice option's line id
 python rf4mod.py script set-target rf3.mc --bank 1 --pc 0x400e --index 1 --target 0x4036 -o new.mc  # retarget a branch/choice destination (validated)
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --dialogue 66494 -o new.mc         # add a dialogue beat
-python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_X) -> L1 / DIALOG #5 / L1:" -o new.mc  # a conditional beat
+python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_DATE_FES_NOW) -> L1 / DIALOG #5 / L1:" -o new.mc  # a conditional beat
 python rf4mod.py script delete rf3.mc --bank 1 --pc 0x3478 -o new.mc          # remove a statement (the bank is rebuilt)
 python rf4mod.py script delete rf3.mc --bank 1 --pc 0x5006 --option 2 -o new.mc  # remove a menu: go on as if option 2 was picked
 python rf4mod.py script listing rf3.mc --bank 1 --pc 0x3478 --text rf3mc.eng -o scene.txt   # scene as re-assemblable source…
@@ -1217,7 +1225,7 @@ python rf4mod.py map validate test.rf4m               # will the game load it th
 python rf4mod.py map resize-attr test.rf4m --width 96 --height 64 --dry-run   # + what the resize breaks
 python rf4mod.py res info ANIM_DUNG_A02.model
 
-# Edit game-data param tables (NLCL, ~80 tables): prices, equipment, crops, recipes…
+# Edit game-data param tables (NLCL, 56 tables of 27 kinds): prices, equipment, crops, recipes…
 python rf4mod.py param info rf3ItemList.bin            # item id → sell price + name
 python rf4mod.py param set rf3ItemList.bin 29 "Sell price=9999" -o new.bin   # Turnip → 9999G
 python rf4mod.py param info rf3ItemEquipmentParam.bin  # weapon/armor ATK/MAT/DEF/MDF/STR/INT/VIT (+ boots word, accessory bit)
@@ -1229,8 +1237,8 @@ python rf4mod.py param dump rf3UseItemParam.bin -o use.csv             # consuma
 python rf4mod.py param csv rf3ItemList.bin -o items.csv                # the NAMED table view (schema columns + item names)
 python rf4mod.py param csv-all -o tables/                              # every rf3*.bin param table -> tables/<stem>.csv
 python rf4mod.py param info Fishing_rate_fish_Spring.bin               # fish spawn weight per season x rain zone + size class (named fields)
-python rf4mod.py param add rf3RecipeCookFry.bin --copy 3 --set result=120 recipe_id=999 -o fry.bin   # NEW recipe row (count read from the file -> honoured)
-python rf4mod.py param add rf3TxtQuest_split3_1.bin --set client_id=2 category=1 -o q.bin   # new request row; add its title/description lines with `text add` too
+python rf4mod.py param add rf3RecipeCookFry.bin --copy 3 --set Result=120 "Recipe id=999" -o fry.bin   # NEW recipe row (count read from the file -> honoured)
+python rf4mod.py param add rf3TxtQuest_split3_1.bin --set Client=2 "Request kind=1" -o q.bin   # new request row; add its title/description lines with `text add` too
 python rf4mod.py param remove fry.bin 53 -o fry.bin                    # delete a row (later rows shift down by one)
 python rf4mod.py param info rf3ItemList.bin                            # the 2nd line says whether an added row is ever read (here: capped at 1108 ids)
 
@@ -1256,10 +1264,10 @@ python rf4mod.py gift monster-set Goblin auto Onigiri 15 -o rf3MonsterPresent.bi
 
 # NPC daily schedules (rf3Schedule itineraries + rf3ScheduleID spots), one per (NPC, state):
 # states 0..5 weekday, 6..11 the same day in rain, 12 festival, 13 New Year's Eve, 14 married, 15 married 7 pm date.
-python rf4mod.py schedule show --npc Vishnal --state weekday0     # 06:00 Butler's Room -> ... -> 24:00 Butler's Room
-python rf4mod.py schedule set Vishnal weekday0 3 --time 07:30 --spot 26 -o rf3Schedule.bin   # re-time / re-target a stop
-python rf4mod.py schedule add Vishnal rain0 --time 09:45 --spot 5 -o rf3Schedule.bin        # insert a stop (kept in time order)
-python rf4mod.py schedule remove Vishnal weekday0 18 -o rf3Schedule.bin
+python rf4mod.py schedule show --npc Forte --state weekday0     # 06:00 Butler's Room -> ... -> 24:00 Butler's Room
+python rf4mod.py schedule set Forte weekday0 3 --time 07:30 --spot 26 -o rf3Schedule.bin   # re-time / re-target a stop
+python rf4mod.py schedule add Forte rain0 --time 09:45 --spot 5 -o rf3Schedule.bin        # insert a stop (kept in time order)
+python rf4mod.py schedule remove Forte weekday0 17 -o rf3Schedule.bin
 python rf4mod.py schedule spots 26                                # the rf3ScheduleID records a spot kind rolls between (weights)
 python rf4mod.py schedule decode -o sched.json                    # ...edit the JSON... then:
 python rf4mod.py schedule encode sched.json -o rf3Schedule.bin    # index sections recomputed (stock JSON re-encodes byte-exact)
@@ -1274,7 +1282,7 @@ python rf4mod.py route encode route.json -o rf3route.bin --result rf3RouteResult
 # what every item adds when forged into gear, what it adds to a dish, and the status word
 # whose bit 0x4000 marks NON-FOOD items (a sword in a dish makes it a Failed Dish).
 python rf4mod.py str show "Broken Ice Wall" 935 1108   # ATK+105 MAT+95; Glitta Augite reach +50%; a tier row
-python rf4mod.py str list --field reach_scale          # every item that changes weapon reach
+python rf4mod.py str list --field Reach                # every item that changes weapon reach
 python rf4mod.py str list --group attack_proc          # on-hit poison/seal/... chances by material
 python rf4mod.py str flags                             # status-word histogram + the non-food marker by category
 python rf4mod.py str specials                          # id-keyed forge behaviour (elements, ability bits, x2/x8)
