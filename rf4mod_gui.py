@@ -6432,7 +6432,11 @@ class App:
         if stem == "rf3ParamMagic":                 # what fires each row
             from rf4s_modkit import magicnames
             used = magicnames.names_for_game()
-        used_col = ["used by"] if stem == "rf3ParamMagic" else []
+        detail_rows = stem == "rf4TxtItemParameter_split2_1"
+        if detail_rows:                             # which item categories show each layout
+            il = _find_extracted("rf3ItemList.bin")
+            used = nlcl.item_detail_users(il) if il else {}
+        used_col = ["used by"] if stem == "rf3ParamMagic" or (detail_rows and used) else []
         pre_cols, pre_vals = [], None
         spots = stem == "rf3ScheduleID"
         if spots:                                   # the spot kind each spot belongs to
@@ -6520,7 +6524,11 @@ class App:
             base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here; a "
                               "kind with several spots picks one of them each day by weight. Type "
                               "'kind 26' in the search box to list one kind's spots.")
-        if used_col:
+        if used_col and detail_rows:
+            base_text["t"] = ("'used by' = the items that show this layout in their detail window, by "
+                              "their rf3ItemList Category (fixed in the game). 'never shown' rows do "
+                              "nothing in game: 0-139 are the text pieces, 195-210 test layouts.")
+        elif used_col:
             base_text["t"] = ("'used by' = the player spell, the monsters (their attack timeline) or the "
                               "timeline that fires the row; an empty cell is fired from game code (boss "
                               "scripts, thrown items, traps ...). Select a row for the full list.")
@@ -6698,7 +6706,7 @@ class App:
             i = int(s[0]); sel["i"] = i
             if monsters or strength:
                 show_sheet(i)
-            if used_col:
+            if used_col and not detail_rows:
                 from rf4s_modkit import magicnames
                 full = magicnames.full_text(i)
                 base_text["t"] = f"#{i} used by: " + ("  ·  ".join(full.splitlines()) if full else

@@ -1154,7 +1154,10 @@ FIELD_SCHEMAS = {
         # (+0x38DD0), which renders it with a text piece of the same archive (ITEM_DETAIL_IDS).
         # The values it shows come from the item's rf3UseItemParam, rf3ItemEquipmentParam and
         # rf3ItemStrengthening records (the window copies all three); 40 and 131..255 show nothing.
-        # The row a kind of item uses is fixed in the exe, so added rows are never shown.
+        # The row an item uses is fixed by its rf3ItemList Category (ITEM_DETAIL_LAYOUT, read
+        # from RF4S.exe+0x389C0): rows 0..139 are the text pieces and are never a layout, rows
+        # 195..210 are test layouts no category picks, and added rows are never shown. The
+        # editor's "used by" column lists the categories (and item count) behind each row.
         "grow": "fixed:211",
         "fields": [(f"Detail {k}", k - 1, "u8") for k in range(1, 85)],
     },
@@ -1631,6 +1634,50 @@ def _detail_names() -> dict:
 
 
 ITEM_DETAIL_IDS = _detail_names()
+
+# Which rf4TxtItemParameter_split2_1 row (= text line) is an item's detail-window layout: fixed
+# by the item's rf3ItemList Category in DetailWindow_GetCategoryRecordIdx (RF4S.exe+0x389C0,
+# read 2026-11-01); category 0 uses row 140 for item ids below 48 and row 194 from 48 on;
+# categories 20..23 and those past 57 have no layout. Any other row is never shown.
+ITEM_DETAIL_LAYOUT = {
+    **{c: 140 + c for c in range(0, 20)},           # 0 Vegetable (see above) .. 19
+    **{24 + k: 161 + k for k in range(9)},          # 24..32
+    33: 160, 34: 170, 35: 171, 36: 173, 37: 172,
+    **{38 + k: 174 + k for k in range(9)},          # 38..46
+    47: 186, 48: 183, 49: 184, 50: 185,
+    **{51 + k: 187 + k for k in range(7)},          # 51..57
+}
+ITEM_DETAIL_SPLIT = (0, 48, 194)    # category 0: item ids from 48 on use row 194 instead
+
+
+def item_detail_layout(category: int, item_id: int):
+    """The rf4TxtItemParameter_split2_1 row an item's detail window uses, or None."""
+    c, first, row = ITEM_DETAIL_SPLIT
+    if category == c and item_id >= first:
+        return row
+    return ITEM_DETAIL_LAYOUT.get(category)
+
+
+def item_detail_users(itemlist: bytes) -> dict:
+    """{row: text} for rf4TxtItemParameter_split2_1: the categories (and how many items of
+    rf3ItemList) that show each layout row, or 'never shown'."""
+    t = NlclTable(itemlist)
+    count = {}
+    for i in range(t.entry_count):
+        key = (t.get(i, 4, "u8"), item_detail_layout(t.get(i, 4, "u8"), i))
+        count[key] = count.get(key, 0) + 1
+    out = {}
+    c0, first, row0 = ITEM_DETAIL_SPLIT
+    for cat, row in sorted(ITEM_DETAIL_LAYOUT.items()):
+        for r, label in ((row, f"Category {cat}" + (f", items 0-{first - 1}" if cat == c0 else "")),
+                         ((row0, f"Category {c0}, items {first}+") if cat == c0 else (None, ""))):
+            if r is None:
+                continue
+            n = count.get((cat, r), 0)
+            out[r] = f"{label} · {n} item{'s' if n != 1 else ''}" if n else f"{label} · no items"
+    for r in range(211):
+        out.setdefault(r, "never shown" + (" (text piece)" if r < 140 else ""))
+    return out
 _SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
 # Named values of plain fields (shown as "Name (value)" and picked from a list).
 VALUE_NAMES = {

@@ -1366,7 +1366,8 @@ def test_bin_editors():
         app._show("rf4TxtItemParameter_split2_1.bin", d); doc = app._doc
         tv = doc._param_tree
         shown = (tv.set("150", "name")[:12], tv.set("150", "Detail 1"), tv.set("150", "Detail 3"),
-                 tv.set("150", "Detail 50"), tv.set("187", "Detail 6"), len(tv["columns"]) >= 85)
+                 tv.set("150", "Detail 50"), tv.set("187", "Detail 6"), len(tv["columns"]) >= 85,
+                 tv.set("141", "used by"), tv.set("5", "used by"), tv.set("200", "used by"))
         doc._param_cells.set("150", "Detail 50", "Sell price")
         put = nlcl.NlclTable(doc.cur_data).get(150, 49, "u8")
         doc._param_cells.set("150", "Detail 50", "(none) (0)")
@@ -1474,9 +1475,12 @@ def test_bin_editors():
                               True, True), res.get("str"))
     _check("rf4TxtItemParameter_split2_1 in the standard table: rows show their text line, the 84 "
            "Detail bytes show what they fill (Star mark, Sell price, Upgrade: Difficulty; 0 blank), "
+           "'used by' names the item category behind each layout (141 = Category 1, text pieces and "
+           "test layouts never shown), "
            "a picked name writes its id and (none) restores the file",
            res.get("itemparam") == ("[%sSteamed] ", "Star mark", "Sell price", "",
-                                    "Upgrade: Difficulty", True, 2, True), res.get("itemparam"))
+                                    "Upgrade: Difficulty", True, "Category 1 · 8 items",
+                                    "never shown (text piece)", "never shown", 2, True), res.get("itemparam"))
     _check("rf3TxtQuest_split3_1: one Client column ('Name (id)') and one Request kind column with the "
            "board text ('25: Kill: %s x ...'); typing 27 sets the kind, Revert restores the file",
            res.get("quest") == (("#", "client", "kind"), True, "25: Kill: %s", 27, True), res.get("quest"))
