@@ -1365,6 +1365,30 @@ def test_bin_editors():
         put = nlcl.NlclTable(doc.cur_data).get(150, 49, "u8")
         doc._param_cells.set("150", "Detail 50", "(none) (0)")
         res["itemparam"] = shown + (put, doc.cur_data == d)
+        # the route editor: typed X, Add point / Add link / Remove, Undo; taming headings
+        rp = B / "rf3route.bin"
+        if rp.exists():
+            from rf4s_modkit import route as _route
+            d = rp.read_bytes()
+            app._show("rf3route.bin", d); doc = app._doc
+            rt = doc._route
+            tv = rt["tree"]
+            heads = tuple(tv.heading(c, "text") for c in ("x", "y", "offset", "to", "cost"))
+            first = next(i for i in tv.get_children(tv.get_children()[0]))
+            rt["cells"].set(first, "x", "123")
+            x_set = _route.RouteGraph.parse(doc.cur_data).nodes[int(first[1:])].x
+            tv.selection_set(first); rt["add_link"]()
+            links = len(_route.RouteGraph.parse(doc.cur_data).edges) - len(_route.RouteGraph.parse(d).edges)
+            tv.selection_set(first); rt["add_point"]()
+            pts = len(_route.RouteGraph.parse(doc.cur_data).nodes) - len(_route.RouteGraph.parse(d).nodes)
+            rt["remove"]()                                  # the new point is selected
+            rt["undo"](); rt["undo"](); rt["undo"](); rt["undo"]()
+            res["route"] = (heads, x_set, links, pts, doc.cur_data == d)
+        mp = B / "rf3MonsterPresent.bin"
+        if mp.exists():
+            app._show("rf3MonsterPresent.bin", mp.read_bytes()); doc = app._doc
+            mt = doc._montame["tree"]
+            res["montame_heads"] = tuple(mt.heading(c, "text") for c in ("sp", "who", "item1", "bonus1"))
         # gift categories: add then remove an item
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
@@ -1428,6 +1452,14 @@ def test_bin_editors():
            "a picked name writes its id and (none) restores the file",
            res.get("itemparam") == ("[%sSteamed] ", "Star mark", "Sell price", "",
                                     "Upgrade: Difficulty", True, 2, True), res.get("itemparam"))
+    if "route" in res:
+        _check("rf3route in the editor: plain headings, a typed X writes the point, Add link / Add point "
+               "/ Remove change the graph, Undo brings the file back byte-exact",
+               res["route"] == (("X", "Y", "Random offset", "Goes to", "Cost"), 123, 1, 1, True),
+               res["route"])
+    if "montame_heads" in res:
+        _check("rf3MonsterPresent headings are plain (Species, Name, Item 1, Tame bonus 1)",
+               res["montame_heads"] == ("Species", "Name", "Item 1", "Tame bonus 1"), res["montame_heads"])
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
            "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
 
@@ -6926,6 +6958,21 @@ def test_behaviour_edits():
                tr.stride == 159 and tr2.stride == 159 and tr2.path(tiny, 0, 2)[1] == 10
                and any(m.startswith("ERROR") for m in bad.validate())
                and not any(m.startswith("ERROR") for m in g.validate()))
+        # 2026-11-01: point / link editing keeps the file consistent; rooms >= 161 never route
+        ge = route.RouteGraph.parse(d)
+        r5 = ge.nodes[5].room
+        ni = ge.add_node(r5, 10, 20, 3)
+        ge.add_edge(ni, r5, 0, 99)
+        ge.add_edge(5, r5, ni - ge.rooms()[r5].first_node, 7)
+        grown = (len(ge.nodes) - len(g.nodes), len(ge.edges) - len(g.edges), ge.validate())
+        ge.remove_node(ni)
+        back = ge.build() == d
+        ge.add_node(200)
+        _check("route edits: a point added with two links validates clean, removing it (and the link "
+               "to it) restores the file byte-exact, a point in room 200 is flagged (the game only "
+               "path-finds in rooms 0..160)",
+               grown == (1, 2, []) and back
+               and any("0..160" in m for m in ge.validate()), (grown, back, ge.validate()))
     else:
         _skip("route checks", "no rf3route.bin present")
 

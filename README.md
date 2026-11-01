@@ -1252,7 +1252,7 @@ python rf4mod.py gift remove Raven "Star Pendant" -o rf3PresentNpc25.bin        
 python rf4mod.py gift monster-set Goblin auto Onigiri 15 -o rf3MonsterPresent.bin # taming-food slot (per species; auto = reuse/first free)
 
 # NPC daily schedules (rf3Schedule itineraries + rf3ScheduleID spots), one per (NPC, state):
-# states 0..5 weekday, 6..11 the same day in rain, 12/13 festival, 14/15 married / date day.
+# states 0..5 weekday, 6..11 the same day in rain, 12 festival, 13 New Year's Eve, 14 married, 15 married 7 pm date.
 python rf4mod.py schedule show --npc Vishnal --state weekday0     # 06:00 Butler's Room -> ... -> 24:00 Butler's Room
 python rf4mod.py schedule set Vishnal weekday0 3 --time 07:30 --spot 26 -o rf3Schedule.bin   # re-time / re-target a stop
 python rf4mod.py schedule add Vishnal rain0 --time 09:45 --spot 5 -o rf3Schedule.bin        # insert a stop (kept in time order)

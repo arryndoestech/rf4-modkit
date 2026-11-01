@@ -26,6 +26,8 @@ succeeds when `chance >= (rand & 0x7F)`, so HIGHER chance = EASIER):
     lucky day ((g_dailyRngScrambleAndStateFlags & 0xF) == 5): chance += 32
     chance = (pet_count + 4 * hit_count + item_level + chance) >> min(same_species_tamed, 4), min 1
     level gap (monster level - player level, if > 0, species != 82/113): chance >>= gap >> 1
+    boss-food monster (actor flags & 0x800): a chance of 13 or more becomes 13 + hit_count
+        (re-read 2026-11-01), so only hitting it raises the odds past 14 / 128
     roll: chance >= (rand & 0x7F) -> tamed (192), else fail reaction 24..179
 The roll is 16-bit signed arithmetic, so the writer limits a bonus to 0..32767 (MAX_BONUS); a
 listed item with bonus 0 behaves exactly like an unlisted one (and a boss-food monster refuses it).

@@ -4250,7 +4250,7 @@ def build_parser():
     sh0 = shsub.add_parser("show", help="decode itineraries: per (npc, state) time -> spot -> room")
     sh0.add_argument("file", nargs="?", help="rf3Schedule.bin (default: auto-locate)")
     sh0.add_argument("--npc", help="only this NPC (id 0..47 or name, e.g. Vishnal)")
-    sh0.add_argument("--state", help="only this state: 0..17 or weekday0..5 / rain0..5 / festival / festival21 / married / date")
+    sh0.add_argument("--state", help="only this state: 0..17 or weekday0..5 / rain0..5 / festival / newyearseve / married / date")
     sh0.add_argument("--limit", type=int, default=8, help="max schedules to print (default 8)")
     sh0.set_defaults(func=cmd_schedule_show)
     sh1 = shsub.add_parser("decode", help="rf3Schedule.bin -> JSON (edit, then `schedule encode`)")

@@ -45,7 +45,7 @@ _MAGICS = [
     (b"EMDb",     FileType("emdeb", "Event Manager symbol table (emdeb.bin)",
                            "emf", "emscript", False,
                            "entry/query names for em.bin + the FLG_/REG_ save-flag layout")),
-    (b"TRCS",     FileType("route", "NPC town-navigation graph (rf3route.bin: rooms/nodes/edges)",
+    (b"TRCS",     FileType("route", "NPC walking routes (rf3route.bin: rooms, points, links)",
                            "trcs", "route", True,
                            "pairs with rf3RouteResult.bin (next-hop matrix); JSON round trip")),
     # NLCL is disambiguated in identify(): Gen*.bin (version 6) -> gen encounter table;
@@ -142,7 +142,7 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
                         "montame", True, "4 (item, tame bonus) slots per species; "
                         "`rf4mod gift monster-set`")
     if base.startswith("rf3routeresult"):      # headerless 318 x 159 B nibble matrix
-        return FileType("route_result", "NPC path next-hop matrix (rf3RouteResult.bin)",
+        return FileType("route_result", "NPC walking routes worked out (rf3RouteResult.bin, rebuilt from rf3route.bin)",
                         "binary", "route", True,
                         "hop[dst][src] nibbles over rf3route.bin; `route rebuild-result`")
     if base == "rf3schedule.bin" or (data[:4] == b"\x30\x00\x12\x00" and data[4:8] == b"\x10\x00\x00\x00"):

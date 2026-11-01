@@ -22,7 +22,13 @@ rf3route.bin (10456 B):
                                  dest_node = index within the destination room's node group;
                                  cost = distance in sub-units, 0 = room-transition edge
     The pathfinder indexes the room table and edge destinations with 8-bit room numbers, so only
-    rooms 0..255 can carry nodes (shipped: 32 rooms with nodes, highest id 159).  Nodes are
+    rooms 0..255 can carry nodes, and every caller only path-finds in rooms 0..160: Nav_IsMapWalkable
+    (+0x22EC30), Npc_RefreshFromSchedule (+0x229FE0), NpcSchedule_BeginNavigationToCurrentSlice
+    and Companion_DismissNpcAndRestoreSchedule all treat a room >= 161 (0xA1) as having no route
+    points (checked 2026-11-01), so points in rooms 161..255 are never used (shipped: 32 rooms
+    with points, highest id 159).  The game reads room +1 / +2, point +0..+8 and the whole link;
+    room +0, point +9 (its room) and +10 and the high halves of the three counts are not read
+    (build() writes them from the point lists).  Nodes are
     stored grouped by room and edges grouped by node, with first_node / first_edge as running
     sums; build() regenerates the room table and both running sums from the node/edge lists.
 
@@ -54,6 +60,7 @@ MAX_HOPS = 64
 ENGINE_STRIDE = 159              # hard-coded row stride of rf3RouteResult in the walker
 MAX_NODES = 2 * ENGINE_STRIDE    # 318: src >> 1 must stay inside one 159-byte row
 MAX_HOP_EDGES = 16               # hop values are nibbles
+NAV_ROOMS = 161                  # rooms the game path-finds in (every caller tests room < 0xA1)
 
 Room = namedtuple("Room", "room_lo node_count first_node")
 Node = namedtuple("Node", "x y first_edge jitter edge_count room")
@@ -126,6 +133,89 @@ class RouteGraph:
     def edge_target(self, e: Edge) -> int:
         return self.node_index(e.dest_room, e.dest_node)
 
+    # ---- editing (the next-hop matrix must be recomputed afterwards) ---- #
+    def _renumber(self) -> None:
+        pos = 0
+        for i, n in enumerate(self.nodes):
+            self.nodes[i] = n._replace(first_edge=pos)
+            pos += n.edge_count
+
+    def set_node(self, i: int, **kw) -> None:
+        """Change a point's x / y / jitter (the random offset added when an NPC passes it)."""
+        for k, v in kw.items():
+            if k not in ("x", "y", "jitter"):
+                raise RouteError(f"a point has no field {k!r}")
+            lo, hi = (-0x8000, 0x7FFF) if k in ("x", "y") else (0, 0xFFFF)
+            if not lo <= int(v) <= hi:
+                raise RouteError(f"{k} must be {lo}..{hi}")
+        self.nodes[i] = self.nodes[i]._replace(**{k: int(v) for k, v in kw.items()})
+
+    def add_node(self, room: int, x: int = 0, y: int = 0, jitter: int = 0) -> int:
+        """Add a point (no links yet) as the last of its room's points; returns its index."""
+        if not 0 <= room <= 255:
+            raise RouteError("the pathfinder addresses rooms as u8: points only in rooms 0..255")
+        if self.rooms()[room].node_count >= 255:
+            raise RouteError(f"room {room} already has 255 points")
+        at = next((i for i, n in enumerate(self.nodes) if n.room > room), len(self.nodes))
+        self.nodes.insert(at, Node(0, 0, 0, 0, 0, room))
+        self._renumber()
+        self.set_node(at, x=x, y=y, jitter=jitter)
+        return at
+
+    def remove_node(self, i: int) -> None:
+        """Remove a point, its links and every link leading to it (later points of the room
+        move up one, and the links to them follow)."""
+        room = self.nodes[i].room
+        k = i - self.rooms()[room].first_node
+        kept, counts = [], []
+        for j, n in enumerate(self.nodes):
+            es = []
+            if j != i:
+                for e in self.edges_of(j):
+                    if e.dest_room == room and e.dest_node == k:
+                        continue
+                    if e.dest_room == room and e.dest_node > k:
+                        e = e._replace(dest_node=e.dest_node - 1)
+                    es.append(e)
+            kept += es
+            counts.append(len(es))
+        self.nodes = [n._replace(edge_count=c) for n, c in zip(self.nodes, counts)]
+        del self.nodes[i]
+        self.edges = kept
+        self._renumber()
+
+    def add_edge(self, node: int, dest_room: int, dest_node: int, cost: int = 0) -> int:
+        """Add a link from a point as its last one; returns its number among the point's links."""
+        n = self.nodes[node]
+        if n.edge_count >= 255:
+            raise RouteError(f"point {node} already has 255 links")
+        self.edges.insert(n.first_edge + n.edge_count, Edge(0, 0, 0))
+        self.nodes[node] = n._replace(edge_count=n.edge_count + 1)
+        self._renumber()
+        self.set_edge(node, n.edge_count, dest_room=dest_room, dest_node=dest_node, cost=cost)
+        return n.edge_count
+
+    def set_edge(self, node: int, k: int, **kw) -> None:
+        """Change a link's destination (dest_room, dest_node = the point's number in that room)
+        or its cost (0 = a room change)."""
+        n = self.nodes[node]
+        if not 0 <= k < n.edge_count:
+            raise RouteError(f"point {node} has no link {k}")
+        e = self.edges[n.first_edge + k]._replace(**{a: int(v) for a, v in kw.items()})
+        if not 0 <= e.dest_room <= 255 or not 0 <= e.dest_node <= 255 or not 0 <= e.cost <= 0xFFFF:
+            raise RouteError("a link needs room 0..255, point 0..255 and cost 0..65535")
+        if e.dest_node >= self.rooms()[e.dest_room].node_count:
+            raise RouteError(f"room {e.dest_room} has no point {e.dest_node}")
+        self.edges[n.first_edge + k] = e
+
+    def remove_edge(self, node: int, k: int) -> None:
+        n = self.nodes[node]
+        if not 0 <= k < n.edge_count:
+            raise RouteError(f"point {node} has no link {k}")
+        del self.edges[n.first_edge + k]
+        self.nodes[node] = n._replace(edge_count=n.edge_count - 1)
+        self._renumber()
+
     # ---- validation ------------------------------------------------------ #
     def validate(self) -> list[str]:
         """'ERROR: ...' / 'WARN: ...' lines for what Nav_BuildPathFromAToB and
@@ -144,6 +234,10 @@ class RouteGraph:
                 errs.append(f"room {r}: {rm.node_count} nodes, but the count is a u8")
         if any(nd.room > 255 for nd in self.nodes) or any(e.dest_room > 255 for e in self.edges):
             errs.append("nodes/edges in rooms above 255: the pathfinder addresses rooms as u8")
+        far = sorted({nd.room for nd in self.nodes if NAV_ROOMS <= nd.room <= 255})
+        if far:
+            warns.append(f"points in room(s) {', '.join(map(str, far))}: the game only path-finds "
+                         f"in rooms 0..{NAV_ROOMS - 1}, so NPCs never walk these")
         for i, nd in enumerate(self.nodes):
             if nd.edge_count > 255:
                 errs.append(f"node {i}: {nd.edge_count} edges, but the count is a u8")

@@ -38,8 +38,13 @@ rf3Schedule.bin (custom binary, not NLCL):
   state code:  0..5  weekday = (calendar day - 1) % 6 (a 6-day cycle in this code path)
                6..11 the same weekday when it rains/snows outdoors (weather 1,3,4; map type
                      attribute bit 0x10 clear)
-               12 festival day        13 festival event 21
-               14 married (spouse)    15 married date day (event 19)
+               12 festival day (GF_REG_FESTA set, main villagers 0..23)
+               13 New Year's Eve (GF_REG_FESTA = 21, festival 21 of rf3TxtCalendar = Winter 30)
+               14 married (spouse)
+               15 married, with a date set for 7 pm: GF_FLG_DATE_FES_NOW set and
+                  GF_REG_DATE_APPO_HOUR = 19 (the hour NpcSchedule_OnSlot48ArrivalSetDate
+                  AppointmentTime +0x22A810 stores); a spouse day that is not state 15 clears
+                  GF_FLG_DATE_FES_NOW (re-read 2026-11-01)
                16, 17 present in the file for some NPCs; the selector never returns them
                      (scripts can force a state via Script_VMOp_ResetNpcScheduleWithState).
 
@@ -107,7 +112,7 @@ KIND_PREFIX = (
 )
 MAX_KIND = len(KIND_PREFIX) - 2          # 370
 
-STATE_NAMES = {12: "festival", 13: "festival21", 14: "married", 15: "date", 16: "state16", 17: "state17"}
+STATE_NAMES = {12: "festival", 13: "newyearseve", 14: "married", 15: "date", 16: "state16", 17: "state17"}
 for _d in range(6):
     STATE_NAMES[_d] = f"weekday{_d}"
     STATE_NAMES[6 + _d] = f"rain{_d}"
@@ -148,7 +153,7 @@ def time_to_slot(text) -> int:
 
 
 def state_code(token) -> int:
-    """0..17, from a number or a name (weekday0..5, rain0..5, festival, festival21, married, date)."""
+    """0..17, from a number or a name (weekday0..5, rain0..5, festival, newyearseve, married, date)."""
     s = str(token).strip().lower()
     if s in STATE_BY_NAME:
         return STATE_BY_NAME[s]

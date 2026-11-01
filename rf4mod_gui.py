@@ -4969,7 +4969,8 @@ class App:
         kind (rf3ScheduleID) are listed below it. Edit, add or remove a stop, copy the routine to
         another day, Revert, Save as...
         Day rule: Schedule_GetNpcStateForToday (RF4S.exe+0x229160), state = (day of month - 1) % 6,
-        +6 on a rain / snow day while the NPC's map is outdoors, 12..15 festival / married."""
+        +6 on a rain / snow day while the NPC's map is outdoors, 12 festival day, 13 New Year's
+        Eve, 14 married, 15 married with a 7 pm date."""
         doc = self._doc
         st = {"sc": schedule.Schedule.parse(data)}
         sidbytes = _find_extracted("rf3ScheduleID.bin")
@@ -4983,8 +4984,8 @@ class App:
             if s < 12:
                 d = s - 6
                 return f"Rain / snow: days {', '.join(str(d + 1 + 6 * k) for k in range(5))}"
-            return {12: "Festival day", 13: "Festival 21 day", 14: "Married (spouse)",
-                    15: "Married: date day"}.get(s, f"State {s} (only set by scripts)")
+            return {12: "Festival day", 13: "New Year's Eve", 14: "Married (spouse)",
+                    15: "Married: 7 pm date"}.get(s, f"State {s} (only set by scripts)")
 
         def kind_short(k):
             if not spots:
@@ -5489,7 +5490,8 @@ class App:
         cols = ["sp", "who"] + slot_cols
         tv = ttk.Treeview(top, columns=cols, show="headings", height=22)
         for c in cols:
-            tv.heading(c, text={"sp": "species", "who": "name"}.get(c, c))
+            tv.heading(c, text={"sp": "Species", "who": "Name"}.get(
+                c, f"Item {c[4:]}" if c.startswith("item") else f"Tame bonus {c[5:]}"))
             tv.column(c, width={"sp": 60, "who": 140}.get(c, 150 if c.startswith("item") else 55), anchor="w")
         _table_scrollbars(top, tv)
         last = min(montame.FIRST_SPECIES + montame.species_count(data) - 1, montame.LAST_SPECIES)
@@ -5575,73 +5577,265 @@ class App:
         doc._montame = dict(tree=tv, cells=cells, undo=undo, revert=revert)    # (selftest)
 
     def _view_route(self, name, data):
-        """rf3route.bin — the NPC town-navigation graph (rooms -> nodes -> edges): tree view,
-        path queries through rf3RouteResult.bin, JSON export / import (edits land in the
-        working copy) and next-hop matrix regeneration (2026-09-19)."""
+        """rf3route.bin -- the points NPCs walk between in town (rooms -> points -> links), edited
+        in the table: a point's X / Y / random offset, a link's destination and cost; Add point,
+        Add link, Remove; path queries through rf3RouteResult.bin; JSON export / import; and the
+        next-hop matrix rebuilt from the graph (it must be rebuilt after any edit)."""
         doc = self._doc
         from rf4s_modkit import route
         import json as _json
-        g = route.RouteGraph.parse(data)
-        rooms = [(rid, r) for rid, r in enumerate(g.rooms()) if r.node_count]
+        st = {"g": route.RouteGraph.parse(data)}
+        history = []
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"NPC walking routes — {len(g.nodes)} points, {len(g.edges)} links "
-                            f"in {len(rooms)} rooms (positions in tiles)",
-                  wraplength=700).pack(side="left", padx=6)
-        tv = ttk.Treeview(doc.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
-        tv.heading("#0", text="room / node / edge"); tv.column("#0", width=230)
-        for c, w in (("kind", 60), ("id", 60), ("detail", 520)):
-            tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        for rid, r in rooms:
-            parent = tv.insert("", "end", text=f"room {rid}  {map_names.map_name(rid)}",
-                               values=("room", rid, f"{r.node_count} node(s) from #{r.first_node}"))
-            for ni in g.nodes_of_room(rid):
-                n = g.nodes[ni]
-                nid = tv.insert(parent, "end", text=f"node {ni}",
-                                values=("node", ni, f"tile ({n.x},{n.y})  jitter {n.jitter}  "
-                                                    f"{n.edge_count} edge(s)"))
-                for e in g.edges_of(ni):
-                    tgt = g.edge_target(e)
-                    tv.insert(nid, "end", text=f"-> node {tgt}",
-                              values=("edge", tgt, f"room {e.dest_room} node {e.dest_node}  "
-                                                   f"cost {e.cost}{'  (room transition)' if e.cost == 0 else ''}"))
+        head = ttk.Label(bar, justify="left"); head.pack(fill="x", padx=6)
+        head.bind("<Configure>", lambda e: head.config(wraplength=max(200, e.width - 8)))
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
+        cols = ("x", "y", "offset", "to", "cost")
+        tv = ttk.Treeview(top, columns=cols, show="tree headings", height=18)
+        tv.heading("#0", text="Room / point / link"); tv.column("#0", width=260)
+        for c, t_, w in (("x", "X", 70), ("y", "Y", 70), ("offset", "Random offset", 100),
+                         ("to", "Goes to", 250), ("cost", "Cost", 110)):
+            tv.heading(c, text=t_); tv.column(c, width=w, anchor="w")
+        _table_scrollbars(top, tv)
+        col_help = dict((("x", "Where the point is, in sub-units (8 per tile; << 12 = world units)."),
+                       ("y", "Where the point is, in sub-units (8 per tile)."),
+                       ("offset", "How far (sub-units, in a random direction) an NPC may pass "
+                                  "beside this point; 0 = exactly through it."),
+                       ("to", "Where the link leads: room:point (the point's number in that room)."),
+                       ("cost", "The link's length in sub-units, summed to pick the shortest way; "
+                                "0 = a room change (a door).")))
+        info = ttk.Label(doc.content, foreground="#555", wraplength=900, justify="left",
+                         text="Point at a column heading to see what it means.")
+        info.pack(fill="x", padx=6, before=top)
+
+        def on_motion(e):
+            col = None
+            if tv.identify_region(e.x, e.y) == "heading":
+                cid = tv.identify_column(e.x)
+                col = cols[int(cid[1:]) - 1] if cid not in ("#0", "") and cid[1:].isdigit() else None
+            info.config(text=col_help.get(col, "Point at a column heading to see what it means."))
+        tv.bind("<Motion>", on_motion, add="+")
+        problems = ttk.Label(doc.content, foreground="#b00", wraplength=900, justify="left")
+        problems.pack(fill="x", padx=6)
+
+        def point_name(r, k):
+            return f"{r}:{k}  {map_names.map_name(r) or ''}".rstrip()
+
+        def fill():
+            g = st["g"]
+            keep_open = {i for i in tv.get_children() if tv.item(i, "open")}
+            sel = tv.selection()
+            tv.delete(*tv.get_children())
+            rooms = g.rooms()
+            used = [r for r in range(len(rooms)) if rooms[r].node_count]
+            head.config(text=f"NPC walking routes -- {len(g.nodes)} points, {len(g.edges)} links in "
+                             f"{len(used)} rooms. Positions and costs are in sub-units (8 per tile). "
+                             f"After an edit, rebuild rf3RouteResult.bin (button) and save both.")
+            for r in used:
+                rm = rooms[r]
+                far = "   (NPCs never walk here: the game only path-finds in rooms 0..160)" \
+                    if r >= route.NAV_ROOMS else ""
+                rid = f"r{r}"
+                tv.insert("", "end", iid=rid, text=f"room {r}  {map_names.map_name(r) or ''}{far}",
+                          values=("", "", "", f"{rm.node_count} point(s)", ""), open=rid in keep_open)
+                for k in range(rm.node_count):
+                    i = rm.first_node + k
+                    n = g.nodes[i]
+                    tv.insert(rid, "end", iid=f"n{i}", text=f"point {k}  (#{i})",
+                              values=(n.x, n.y, n.jitter, f"{n.edge_count} link(s)", ""),
+                              open=f"n{i}" in keep_open)
+                    for j, e in enumerate(g.edges_of(i)):
+                        tv.insert(f"n{i}", "end", iid=f"e{i}:{j}", text=f"link {j}",
+                                  values=("", "", "", f"{point_name(e.dest_room, e.dest_node)}  "
+                                                      f"(#{g.edge_target(e)})",
+                                          "0 (room change)" if e.cost == 0 else e.cost))
+            for i in sel:
+                if tv.exists(i):
+                    tv.see(i); tv.selection_add(i)
+            msgs = g.validate()
+            problems.config(text="\n".join(msgs[:4]) + (f"\n... {len(msgs) - 4} more" if len(msgs) > 4 else ""))
+
+        def changed(before, msg):
+            g = st["g"]
+            try:
+                blob = g.build()
+            except route.RouteError:
+                st["g"] = route.RouteGraph.parse(before)
+                raise
+            if blob != before:
+                history.append(before)
+            doc.cur_data = blob
+            fill()
+            self.status.config(text=msg + " -- rebuild rf3RouteResult.bin too; Save (Ctrl+S) to write")
+
+        def edit(fn, msg):
+            before = st["g"].build()
+            fn(st["g"])
+            changed(before, msg)
+
+        def node_of(iid):
+            return int(iid[1:]) if iid.startswith("n") else None
+
+        def edge_of(iid):
+            if not iid.startswith("e"):
+                return None
+            i, j = iid[1:].split(":")
+            return int(i), int(j)
+
+        def parse_point(text):
+            t = str(text).strip().split()[0] if str(text).strip() else ""
+            r, _, k = t.partition(":")
+            if not k:
+                raise ValueError("type room:point, e.g. 2:0 (the point's number in that room)")
+            return int(r, 0), int(k, 0)
+
+        def put_node(field):
+            return lambda iid, text: edit(lambda g: g.set_node(node_of(iid), **{field: int(str(text).strip(), 0)}),
+                                          f"point #{node_of(iid)}: {field} = {str(text).strip()}")
+
+        def put_to(iid, text):
+            i, j = edge_of(iid)
+            r, k = parse_point(text)
+            edit(lambda g: g.set_edge(i, j, dest_room=r, dest_node=k), f"point #{i} link {j} -> {r}:{k}")
+
+        def put_cost(iid, text):
+            i, j = edge_of(iid)
+            v = int(str(text).strip().split()[0], 0)
+            edit(lambda g: g.set_edge(i, j, cost=v), f"point #{i} link {j}: cost {v}")
+
+        def point_choices():
+            rooms = st["g"].rooms()
+            return [point_name(r, k) for r in range(len(rooms)) for k in range(rooms[r].node_count)]
+
+        is_node = lambda iid: iid.startswith("n")
+        is_edge = lambda iid: iid.startswith("e")
+        specs = {"x": {"get": lambda iid: str(st["g"].nodes[node_of(iid)].x), "put": put_node("x"), "can": is_node},
+                 "y": {"get": lambda iid: str(st["g"].nodes[node_of(iid)].y), "put": put_node("y"), "can": is_node},
+                 "offset": {"get": lambda iid: str(st["g"].nodes[node_of(iid)].jitter),
+                            "put": put_node("jitter"), "can": is_node},
+                 "to": {"get": lambda iid: (lambda e: point_name(e.dest_room, e.dest_node))(
+                            st["g"].edges_of(edge_of(iid)[0])[edge_of(iid)[1]]),
+                        "put": put_to, "choices": point_choices, "can": is_edge},
+                 "cost": {"get": lambda iid: str(st["g"].edges_of(edge_of(iid)[0])[edge_of(iid)[1]].cost),
+                          "put": put_cost, "can": is_edge}}
+        cells = CellEdit(tv, specs, title="Route edit", sort=False)
+
+        # ---- add / remove ----
+        row1 = ttk.Frame(foot); row1.pack(fill="x")
+        _hint_line(ttk.Label(row1, foreground="#555", text=(
+            "Click a cell and type to change it. Add point adds one to the selected room (or the "
+            "room typed here), Add link adds a link from the selected point to the next point of "
+            "its room, Remove deletes the selected point (with every link to it) or link.")))
+        row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
+        room_v = tk.StringVar()
+
+        def sel_iid():
+            s_ = tv.selection()
+            return s_[0] if s_ else ""
+
+        def add_point():
+            iid = sel_iid()
+            g = st["g"]
+            if room_v.get().strip():
+                r = int(room_v.get().strip(), 0)
+            elif iid.startswith("r"):
+                r = int(iid[1:])
+            elif iid.startswith("n"):
+                r = g.nodes[node_of(iid)].room
+            elif iid.startswith("e"):
+                r = g.nodes[edge_of(iid)[0]].room
+            else:
+                raise ValueError("select a room or point, or type a room number")
+            src = g.nodes[node_of(iid)] if iid.startswith("n") else None
+            box = {}
+            edit(lambda g: box.update(i=g.add_node(r, src.x if src else 0, src.y if src else 0)),
+                 f"room {r}: point added")
+            tv.item(f"r{r}", open=True); tv.selection_set(f"n{box['i']}"); tv.see(f"n{box['i']}")
+
+        def add_link():
+            iid = sel_iid()
+            if not iid.startswith(("n", "e")):
+                raise ValueError("select the point the link starts from")
+            g = st["g"]
+            i = node_of(iid) if iid.startswith("n") else edge_of(iid)[0]
+            n = g.nodes[i]
+            rm = g.rooms()[n.room]
+            k = (i - rm.first_node + 1) % rm.node_count
+            t = g.nodes[rm.first_node + k]
+            cost = round(((t.x - n.x) ** 2 + (t.y - n.y) ** 2) ** 0.5)
+            box = {}
+            edit(lambda g: box.update(j=g.add_edge(i, n.room, k, cost)), f"point #{i}: link added")
+            tv.item(f"n{i}", open=True); tv.selection_set(f"e{i}:{box['j']}"); tv.see(f"e{i}:{box['j']}")
+
+        def remove():
+            iid = sel_iid()
+            if iid.startswith("n"):
+                edit(lambda g: g.remove_node(node_of(iid)), f"point #{node_of(iid)} removed")
+            elif iid.startswith("e"):
+                i, j = edge_of(iid)
+                edit(lambda g: g.remove_edge(i, j), f"point #{i} link {j} removed")
+            else:
+                raise ValueError("select a point or a link")
+
+        def guarded(fn):
+            def run():
+                try:
+                    fn()
+                except Exception as ex:  # noqa: BLE001
+                    messagebox.showerror("Route edit", str(ex))
+            return run
+        ttk.Button(row2, text="Add point", command=guarded(add_point)).pack(side="left")
+        ttk.Label(row2, text="in room").pack(side="left", padx=(6, 2))
+        ttk.Entry(row2, textvariable=room_v, width=5).pack(side="left")
+        ttk.Button(row2, text="Add link", command=guarded(add_link)).pack(side="left", padx=(10, 4))
+        ttk.Button(row2, text="Remove", command=guarded(remove)).pack(side="left")
+
+        def undo(*_):
+            if history:
+                blob = history.pop()
+                st["g"] = route.RouteGraph.parse(blob)
+                doc.cur_data = blob
+                fill()
+                self.status.config(text="Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
+
         # ---- path query against the next-hop matrix ----
-        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(foot); ctl.pack(fill="x", pady=(4, 0))
         v_src, v_dst = tk.StringVar(), tk.StringVar()
-        ttk.Label(ctl, text="path from").pack(side="left")
+        ttk.Label(ctl, text="Path from").pack(side="left")
         ttk.Entry(ctl, textvariable=v_src, width=10).pack(side="left", padx=2)
         ttk.Label(ctl, text="to").pack(side="left")
         ttk.Entry(ctl, textvariable=v_dst, width=10).pack(side="left", padx=2)
-        ttk.Label(ctl, text="(node id or room:N[:k])", font=("Segoe UI", 8), foreground="#666").pack(side="left")
-        out = ttk.Label(doc.content, text="", wraplength=900, justify="left"); out.pack(fill="x", padx=6)
+        ttk.Label(ctl, text="(point #, or room:point)", font=("Segoe UI", 8), foreground="#666").pack(side="left")
+        out = ttk.Label(foot, text="", wraplength=900, justify="left"); out.pack(fill="x")
 
         def _node(text):
-            s = text.strip()
-            if s.lower().startswith("room:"):
-                parts = s.split(":")
-                return g.node_index(int(parts[1], 0), int(parts[2], 0) if len(parts) > 2 else 0)
-            return int(s, 0)
+            t = text.strip()
+            if ":" in t:
+                r, k = parse_point(t.replace("room:", ""))
+                return st["g"].node_index(r, k)
+            return int(t, 0)
 
         def _path():
             res_bytes = _find_extracted("rf3RouteResult.bin")
             if not res_bytes:
                 out.config(text="rf3RouteResult.bin is not extracted next to the graph"); return
+            g = st["g"]
             try:
                 src, dst = _node(v_src.get()), _node(v_dst.get())
                 hops, total = route.RouteResult.parse(res_bytes, len(g.nodes)).path(g, src, dst)
             except Exception as ex:  # noqa: BLE001
-                out.config(text=f"path: {ex}"); return
-            steps = " -> ".join(f"{n}(r{g.nodes[n].room})" + (f"+{c}" if c else "") for n, c in hops)
-            out.config(text=f"{len(hops) - 1} hop(s), total cost {total}:  {steps}")
+                out.config(text=f"Path: {ex}"); return
+            steps = " -> ".join(f"#{n} (room {g.nodes[n].room})" + (f" +{c}" if c else "") for n, c in hops)
+            out.config(text=f"{len(hops) - 1} step(s), total cost {total}:  {steps}")
         ttk.Button(ctl, text="Path", command=_path).pack(side="left", padx=4)
 
         def _export():
             f = filedialog.asksaveasfilename(defaultextension=".json", initialfile="rf3route.json",
                                              filetypes=[("JSON", "*.json")])
             if f:
-                pathlib.Path(f).write_text(g.dumps(), encoding="utf-8")
+                pathlib.Path(f).write_text(st["g"].dumps(), encoding="utf-8")
                 self.status.config(text=f"graph exported → {f}  (edit, then Import JSON…)")
 
         def _import():
@@ -5649,23 +5843,27 @@ class App:
             if not f:
                 return
             try:
-                blob = route.RouteGraph.from_json(_json.loads(pathlib.Path(f).read_text(encoding="utf-8"))).build()
+                g = route.RouteGraph.from_json(_json.loads(pathlib.Path(f).read_text(encoding="utf-8")))
+                before = st["g"].build()
+                st["g"] = g
+                changed(before, "graph imported")
             except Exception as ex:  # noqa: BLE001
-                messagebox.showerror("Import failed", str(ex)); return
-            doc.cur_data = blob
-            self.status.config(text="graph imported — also rebuild the next-hop matrix (button) and save both")
-            self._show(doc.cur_name, blob, doc)
+                messagebox.showerror("Import failed", str(ex))
 
         def _rebuild():
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3RouteResult.bin",
                                              filetypes=[("route result", "*.bin")])
             if f:
-                pathlib.Path(f).write_bytes(route.RouteResult.compute(g).build())
+                pathlib.Path(f).write_bytes(route.RouteResult.compute(st["g"]).build())
                 self.status.config(text=f"next-hop matrix rebuilt from this graph → {f}")
 
         for lbl, cmd in (("Export JSON…", _export), ("Import JSON…", _import),
-                         ("Rebuild next-hop matrix…", _rebuild)):
+                         ("Rebuild rf3RouteResult.bin…", _rebuild)):
             ttk.Button(ctl, text=lbl, command=cmd).pack(side="right", padx=2)
+        fill()
+        doc._route = dict(tree=tv, cells=cells, graph=lambda: st["g"], add_point=add_point,
+                          add_link=add_link, remove=remove, room=room_v, undo=undo,
+                          problems=problems)                                   # (selftest)
 
     def _view_route_result(self, name, data):
         """rf3RouteResult.bin — the derived next-hop matrix; regenerate it from rf3route.bin."""
@@ -5688,7 +5886,7 @@ class App:
             def _rebuild():
                 blob = route.RouteResult.compute(g, rr.rows).build()
                 doc.cur_data = blob
-                self.status.config(text="matrix recomputed from rf3route.bin — Extract… to write")
+                self.status.config(text="matrix recomputed from rf3route.bin — Save (Ctrl+S) to write")
             ttk.Button(doc.content, text="Recompute from rf3route.bin", command=_rebuild).pack(padx=6, pady=4)
         else:
             ttk.Label(doc.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
