@@ -5310,19 +5310,20 @@ class App:
         ttk.Label(head, text="Gift categories", font=("Segoe UI", 11, "bold")).pack(anchor="w")
 
         foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
-        body = ttk.PanedWindow(doc.content, orient="horizontal"); body.pack(fill="both", expand=True, padx=6)
-        left = ttk.Frame(body); body.add(left, weight=2)
-        right = ttk.Frame(body); body.add(right, weight=3)
+        # the category list on top, the selected category's items under it
+        body = ttk.PanedWindow(doc.content, orient="vertical"); body.pack(fill="both", expand=True, padx=6)
+        left = ttk.Frame(body); body.add(left, weight=1)
+        right = ttk.Frame(body); body.add(right, weight=1)
 
         ct = ttk.Treeview(left, columns=("n", "items", "liked", "disliked"), show="headings",
-                          selectmode="browse", height=18)
-        for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("liked", "Liked by", 260),
-                         ("disliked", "Disliked by", 260)):
+                          selectmode="browse", height=11)
+        for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("liked", "Liked by", 420),
+                         ("disliked", "Disliked by", 420)):
             ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
         _table_scrollbars(left, ct); TableSort(ct)
 
         mf = ttk.Frame(right); mf.pack(fill="both", expand=True)
-        mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=14)
+        mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=11)
         for c, t_, w in (("item", "Item", 220), ("id", "Id", 60), ("fp", "Friendship when loved / liked", 190)):
             mt.heading(c, text=t_); mt.column(c, width=w, anchor="w")
         _table_scrollbars(mf, mt)
