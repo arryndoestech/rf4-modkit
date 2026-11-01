@@ -1151,6 +1151,7 @@ def test_flag_fields():
     got = []
     try:
         win = gui._flag_dialog(root, "t", "u32", 0x81, names, got.append)
+        again = gui._flag_dialog(root, "t2", "u8", 0x1, {}, got.append) is win
         ticked = sorted(m for m, v in win.boxes.items() if v.get())
         win.boxes[0x200].set(True)
         win.boxes[0x1].set(False)
@@ -1162,8 +1163,13 @@ def test_flag_fields():
         winc = gui._flag_dialog(root, "t", "s32", 0x40 | 0x10000, eff, got.append, all_named=True)
         only = sorted(winc.boxes)
         winc.ok()
+        reopened = gui._flag_dialog(root, "t", "u8", 0, {}, got.append)
+        fresh = reopened is not winc and reopened.winfo_exists()
+        reopened.destroy()
     finally:
         root.destroy()
+    _check("only one tick-box window is open at a time: asking again while it is open brings that "
+           "window back, and after OK / closing a new one opens", again and fresh, (again, fresh))
     _check("the tick-box dialog ticks the set bits, has one box per bit of the width (named first) "
            "and OK returns the new value",
            ticked == [0x1, 0x80] and got[:1] == [0x280] and n8 == 8 and len(win.boxes) == 32,
@@ -1365,6 +1371,16 @@ def test_bin_editors():
         put = nlcl.NlclTable(doc.cur_data).get(150, 49, "u8")
         doc._param_cells.set("150", "Detail 50", "(none) (0)")
         res["itemparam"] = shown + (put, doc.cur_data == d)
+        # the request database: one Client and one Request kind column, the kind with its board text
+        d = (B / "rf3TxtQuest_split3_1.bin").read_bytes()
+        app._show("rf3TxtQuest_split3_1.bin", d); doc = app._doc
+        qt = doc._quest["tree"]
+        kinds = {qt.set(i, "kind").split(":")[0]: qt.set(i, "kind") for i in qt.get_children()}
+        q0 = (tuple(qt["columns"]), qt.set("0", "client").endswith(")"), kinds.get("25", "")[:12])
+        doc._quest["cells"].set("0", "kind", "27")
+        q_set = nlcl.NlclTable(doc.cur_data).get(0, 1, "u8")
+        doc._quest["revert"]()
+        res["quest"] = q0 + (q_set, doc.cur_data == d)
         # the name-entry keyboard: keys show and are typed as their character
         d = (B / "rf3TxtNameEntryBoard_split2_1.bin").read_bytes()
         app._show("rf3TxtNameEntryBoard_split2_1.bin", d); doc = app._doc
@@ -1461,6 +1477,9 @@ def test_bin_editors():
            "a picked name writes its id and (none) restores the file",
            res.get("itemparam") == ("[%sSteamed] ", "Star mark", "Sell price", "",
                                     "Upgrade: Difficulty", True, 2, True), res.get("itemparam"))
+    _check("rf3TxtQuest_split3_1: one Client column ('Name (id)') and one Request kind column with the "
+           "board text ('25: Kill: %s x ...'); typing 27 sets the kind, Revert restores the file",
+           res.get("quest") == (("#", "client", "kind"), True, "25: Kill: %s", 27, True), res.get("quest"))
     _check("rf3TxtNameEntryBoard: keys show as their character (あ, the gap key as '(wide space)'), "
            "a typed い stores its UTF-8 bytes 0xE38184, typing あ back restores the file",
            res.get("keys") == ("あ", "(wide space)", "－", 0xE38184, True), res.get("keys"))

@@ -263,13 +263,23 @@ def _table_scrollbars(top, tv, widths=None, freeze=0):
     return vs, hs
 
 
+_FLAG_WIN = {"win": None}         # the one open tick-box window
+
+
 def _flag_dialog(parent, title, typ, value, names, on_ok, all_named=False):
     """One tick box per bit of a bit-set field: the named bits first ("Fire  0x01"), then every
     other bit of the field's width as "bit N" (the ones set now are ticked). With all_named
     (every bit the game reads is named) the other bits are left out, except any already set,
-    which stay listed so OK never drops them. OK calls on_ok(new value)."""
+    which stay listed so OK never drops them. OK calls on_ok(new value). Only one is open at a
+    time: while it is, asking for another brings that one to the front instead."""
+    old = _FLAG_WIN["win"]
+    if old is not None and old.winfo_exists():
+        old.deiconify(); old.lift(); old.focus_force(); old.bell()
+        return old
     width = {"u8": 8, "s8": 8, "u16": 16, "s16": 16}.get(typ, 32)
     win = tk.Toplevel(parent)
+    _FLAG_WIN["win"] = win
+    win.bind("<Destroy>", lambda e: _FLAG_WIN.update(win=None) if e.widget is win else None, add="+")
     win.title(title)
     win.transient(parent.winfo_toplevel())
     body = ttk.Frame(win, padding=8)
@@ -6187,8 +6197,9 @@ class App:
     def _view_quest(self, name, data):
         """rf3TxtQuest_split3_1 — the QUEST/REQUEST database (archive 16342).
 
-        Each of the ~165 requests is just {client_id, category}: the posting NPC and a
-        category template id. The concrete objective (monster/item), count, and reward are
+        Each of the ~165 requests is just {client, request kind}: the posting NPC and which line
+        of rf4TxtQuestRequestDetailFormat_split2_2 the board shows ("Kill: %s x %s ..."), one
+        column each. The concrete objective (monster/item), count, and reward are
         rolled PROCEDURALLY at runtime (Quest_PopulateNpcSlot) — only these two bytes are
         authored. Localized text lives in rf3TxtQuest_split3_2/_3.<locale>. (Story/named
         quests are script-driven in rf3.mc — a different subsystem, not edited here.)
@@ -6198,44 +6209,26 @@ class App:
         doc._param = t
         chars = _load_char_names()
 
-        # category (byte1) = the objective-template selector Quest_LoadDetailStrings switches on.
-        # Labels inferred by correlating each category's quests with their English text
-        # (rf3TxtQuest_split3_2/_3.eng) — approximate but reflect the actual quest types.
-        cat_names = {
-            0: "dummy / gift (no objective)", 1: "deliver item (villager request)",
-            2: "deliver item (mystery)", 4: "special (Amber / honey)", 5: "deliver food/seafood",
-            6: "order milestone (license)", 7: "deliver (share item)", 8: "story / tutorial task",
-            9: "do action (cook / forge)", 10: "milestone (achievement)",
-            11: "milestone (crop quality)", 12: "milestone (skill level)", 13: "do action / order",
-            14: "special (marriage / furniture)", 15: "befriend a monster", 16: "gather (lumber)",
-            18: "friendship milestone", 20: "raise skill to 15", 21: "raise skill to 20",
-            22: "befriend many monsters", 24: "shipment milestone",
-            25: "slay monster (help request)", 26: "deliver (investigate)",
-            27: "harvest crop (specific)", 28: "harvest / ship (tutorial)", 29: "ship category",
-            30: "deliver (timed)", 31: "herd / hunt monsters", 32: "ship leveled item",
-        }
-
-        # Ground-truth labels: the category is a direct index into the per-category
-        # detail-format strings in rf4TxtQuestRequestDetailFormat_split2_2.<locale>
-        # (archive 16345, the 2nd DB archive QuestMenu_LoadDatabaseArchives loads). The %s
-        # slots are filled at runtime with the rolled item/monster/count/reward. Prefer these
-        # exact strings; fall back to the hand-written cat_names if the text file isn't present.
+        # the request kind (byte 1) is the line of rf4TxtQuestRequestDetailFormat_split2_2 the
+        # request board shows (Quest_LoadDetailStrings RF4S.exe+0x1ED1F0 uses it as the index; the
+        # same code fills the %s parts) -- shown with that line's text, from whichever language's
+        # file is extracted
         fmt_strings = {}
-        try:
-            for loc in ("eng", "jpn", "fra", "deu"):
-                fbytes = _find_extracted(f"rf4TxtQuestRequestDetailFormat_split2_2.{loc}")
-                if fbytes:                 # _find_extracted returns the file BYTES, not a path
+        for loc in ("eng", "deu", "fra", "jpn", "kor", "twn", "chn"):
+            fbytes = _find_extracted(f"rf4TxtQuestRequestDetailFormat_split2_2.{loc}")
+            if fbytes:                     # _find_extracted returns the file BYTES, not a path
+                try:
                     fa = textdb.TextArchive.parse(fbytes)
-                    fmt_strings = {i: fa.text(i).replace("\n", " / ") for i in range(len(fa))}
+                    fmt_strings = {i: " ".join(fa.text(i).split()) for i in range(len(fa))}
                     break
-        except Exception:
-            fmt_strings = {}
+                except Exception:
+                    fmt_strings = {}
 
         def cat_label(cat):
-            s = fmt_strings.get(cat)
-            if s and not s.startswith("BLANK"):
-                return s
-            return cat_names.get(cat, "")
+            s_ = fmt_strings.get(cat)
+            if s_ is None:
+                return f"kind {cat}" if not fmt_strings else f"kind {cat} (no text line)"
+            return "(no text)" if s_.startswith("BLANK") else s_
 
         def cname(cid):
             if cid in (22, 23):
@@ -6251,11 +6244,11 @@ class App:
         ttk.Label(bar, text="  Search #/client:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=14).pack(side="left", padx=2)
 
-        cols = ("#", "client_id", "client", "category", "type")
+        cols = ("#", "client", "kind")
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=18)
-        heads = {"client_id": "Client id", "client": "Client", "category": "Kind", "type": "Request kind"}
-        for c, w in (("#", 45), ("client_id", 65), ("client", 140), ("category", 60), ("type", 340)):
+        heads = {"client": "Client", "kind": "Request kind (what the board shows)"}
+        for c, w in (("#", 45), ("client", 180), ("kind", 520)):
             tv.heading(c, text=heads.get(c, c)); tv.column(c, width=w, anchor="w")
         vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
@@ -6270,7 +6263,7 @@ class App:
                 if q and q not in str(i) and q not in str(cid) and q not in nm.lower() \
                         and q not in lbl.lower() and q not in str(cat):
                     continue
-                tv.insert("", "end", iid=str(i), values=(i, cid, nm, cat, lbl))
+                tv.insert("", "end", iid=str(i), values=(i, f"{nm or '?'} ({cid})", f"{cat}: {lbl}"))
         sv.trace_add("write", fill); fill()
 
         history = []
@@ -6292,17 +6285,15 @@ class App:
             changed(i, f"Request {i}: {what} set")
 
         client_names = {c: cname(c) for c in range(256) if cname(c)}
-        cat_names_all = {c: cat_label(c) for c in range(34) if cat_label(c)}
+        cat_names_all = {c: cat_label(c) for c in range(max(len(fmt_strings), 33))}
         cells = CellEdit(tv, {
-            "client_id": {"get": lambda row: _item_text(t.get(int(row), 0, "u8"), client_names),
-                          "put": lambda row, text: put(row, 0, text, client_names, "client"),
-                          "choices": lambda: [_item_text(c, client_names) for c in sorted(client_names)]},
-            "category": {"get": lambda row: _item_text(t.get(int(row), 1, "u8"), cat_names_all),
-                         "put": lambda row, text: put(row, 1, text, cat_names_all, "type"),
-                         "choices": lambda: [_item_text(c, cat_names_all) for c in sorted(cat_names_all)]}},
+            "client": {"get": lambda row: _item_text(t.get(int(row), 0, "u8"), client_names),
+                       "put": lambda row, text: put(row, 0, text, client_names, "client"),
+                       "choices": lambda: [_item_text(c, client_names) for c in sorted(client_names)]},
+            "kind": {"get": lambda row: _item_text(t.get(int(row), 1, "u8"), cat_names_all),
+                     "put": lambda row, text: put(row, 1, text, cat_names_all, "request kind"),
+                     "choices": lambda: [_item_text(c, cat_names_all) for c in sorted(cat_names_all)]}},
             title="Requests")
-        cells.cols["client"] = cells.cols["client_id"]
-        cells.cols["type"] = cells.cols["category"]
 
         def undo(*_):
             if history:
@@ -6319,8 +6310,9 @@ class App:
                 changed(int(keep) if keep else 0, "Back to the file as opened")
 
         row = ttk.Frame(doc.content); row.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
-        _hint_line(ttk.Label(row, foreground="#555", text="Click the client or the type and type to change it "
-                  "(a name, part of one, or the number)."))
+        _hint_line(ttk.Label(row, foreground="#555", text="Click the client or the request kind and type to "
+                  "change it (a name, part of one, or the number). The request kind picks the board's "
+                  "'needed / reward' text; the game fills in the %s parts when it posts the request."))
         doc._quest = dict(tree=tv, cells=cells, undo=undo, revert=revert)      # (selftest)
 
     def _view_param(self, name, data):
