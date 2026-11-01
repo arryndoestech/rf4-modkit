@@ -59,7 +59,7 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    The choice is saved; *Options…* → General → **Game folder** shows it, and *Change…* changes it.
 
    Then it opens the game's bundles. Pick a map for the **map editor**, or use the
-   **Cutscenes** button for the **cutscene editor**. The command-line tool is
+   **Cutscene Editor** button. The command-line tool is
    `rf4mod.py --help` (in this folder); `rf4mod.py game` shows or sets the game copy.
 4. *(Optional)* check the install: `py rf4mod.py selftest --quick` in the toolkit folder
    (about a minute; drop `--quick` for the full run, several minutes). It should end
@@ -503,7 +503,7 @@ barns, two fields), and Sharance Maze floors are put together at run time. Field
 ## Cutscene Editor
 
 ```bash
-python rf4mod_gui.py     # open the Manifest, then toolbar "Cutscenes"
+python rf4mod_gui.py     # open the Manifest, then toolbar "Cutscene Editor"
 python script_explorer.py [folder with rf3.mc]   # or on its own
 python gen_opcode_reference.py   # (re)build CUTSCENE_OPCODES.md
 ```
@@ -511,7 +511,7 @@ python gen_opcode_reference.py   # (re)build CUTSCENE_OPCODES.md
 Edits the game's cutscene/event scripts: **`rf3.mc`** (the compiled Script-VM bytecode —
 tens of thousands of scenes), the per-locale **`rf3mc.<locale>`** dialogue text, and the Event
 Manager conditions in **`em.bin`**, with **one undo history** across all three. Reached from the
-main GUI's **Cutscenes** toolbar button, the **Open in Cutscene Editor →** button on a map's
+main GUI's **Cutscene Editor** toolbar button, the **Open in Cutscene Editor →** button on a map's
 scene list, or by clicking a *script spawn* in the map editor (it opens on that exact line). It
 reads the files by basename from the loaded source, so it works best with a **Manifest** open.
 

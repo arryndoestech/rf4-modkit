@@ -998,7 +998,7 @@ class App:
         self.export_btn = ttk.Button(bar, text="Export View…", command=self.cmd_export, state="disabled")
         self.export_btn.pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
+        ttk.Button(bar, text="Cutscene Editor", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
         # Help (every shortcut) at the very right, Options beside it
         import shortcuts_help
         hb = ttk.Button(bar, text="Help", command=lambda: shortcuts_help.open_help(self.root))
@@ -7144,7 +7144,7 @@ class App:
 
     def cmd_event_manager(self):
         """Open the Cutscene editor and pop its Event Manager (em.bin) window straight
-        away. Same window the 'Cutscenes' button reaches via 'Event Manager\u2026'; the entry
+        away. Same window the 'Cutscene Editor' button reaches via 'Event Manager\u2026'; the entry
         browser works without rf3.mc loaded (the 'used by scenes' list is just empty)."""
         self.cutscene_editor().open_event_manager()
 

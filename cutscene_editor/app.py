@@ -1,6 +1,6 @@
 """CutsceneExplorer: the cutscene editor window (browser | script view + tabs | Inspector)
 and every edit it can make. Hosted standalone (`python script_explorer.py`) and by
-rf4mod_gui (Cutscenes button, a map's Events tab, the map editor's NPC-spawn markers).
+rf4mod_gui (Cutscene Editor button, a map's Events tab, the map editor's NPC-spawn markers).
 
 Host API: CutsceneExplorer(parent, reader=None, status_fn=None, focus_bank=None,
 focus_entry=None, focus_pc=None); .show_bank(pos, entry_pc=None);
