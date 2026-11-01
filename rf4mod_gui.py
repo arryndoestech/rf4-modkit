@@ -4575,7 +4575,7 @@ class App:
         left = ttk.Frame(body); left.pack(side="left", fill="y")
         cols = ("lvl", "xp", "total")
         tv = ttk.Treeview(left, columns=cols, show="headings", height=22, selectmode="extended")
-        for c, t_, w in (("lvl", "At level", 150), ("xp", "XP to next level", 120), ("total", "Total XP so far", 120)):
+        for c, t_, w in (("lvl", "At level", 150), ("xp", "XP to next level", 120), ("total", "Total XP", 120)):
             tv.heading(c, text=t_); tv.column(c, width=w, anchor="e" if c != "lvl" else "w")
         _table_scrollbars(left, tv)
         right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True, padx=(10, 0))
