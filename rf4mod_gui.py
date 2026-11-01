@@ -230,8 +230,9 @@ def _table_scrollbars(top, tv, widths=None, freeze=0):
     """Scroll bars for a wide Treeview table: every column keeps its width (wide enough for its
     heading, or widths[col]) instead of being squeezed into the window, a horizontal bar appears
     under the table, and Shift + mouse wheel scrolls sideways. A table of _WIDE_TABLE_COLUMNS or
-    more is shown a window of columns at a time (Tk redraws every column, in view or not), with
-    its first `freeze` columns kept at the left."""
+    more -- or one with columns to keep in view (`freeze`: the row number and the name) -- is
+    shown a window of columns at a time (Tk redraws every column, in view or not); its first
+    `freeze` columns stay at the left while the option "Keep row names in view" is on."""
     import tkinter.font as tkfont
     try:
         f = tkfont.nametofont("TkHeadingFont")
@@ -246,7 +247,7 @@ def _table_scrollbars(top, tv, widths=None, freeze=0):
     hs = ttk.Scrollbar(top, orient="horizontal", command=tv.xview)
     tv.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
     cw = None
-    if len(tv["columns"]) >= _WIDE_TABLE_COLUMNS:
+    if len(tv["columns"]) >= _WIDE_TABLE_COLUMNS or freeze:
         from guiutil import ColumnWindow
         cw = ColumnWindow(tv, hs, freeze)
         hs.configure(command=cw.xview)
@@ -1355,6 +1356,16 @@ class App:
         Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
                 "Town Square, ...), each one opens and closes. Off: one flat list of files.")
         self._options_rows(gen)
+        ttk.Label(gen, text="Tables", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        import guiutil
+        self._sticky_var = tk.BooleanVar(value=guiutil.sticky_columns())
+        sk = ttk.Checkbutton(gen, text="Keep row names in view when scrolling sideways",
+                             variable=self._sticky_var,
+                             command=lambda: guiutil.set_sticky_columns(self._sticky_var.get()))
+        sk.pack(anchor="w", pady=(4, 0))
+        Tip(sk, "On: a table's row number and name column stay at the left while you scroll "
+                "sideways (every .bin table). Off: they scroll away with the other columns. "
+                "Applies to open tables at once.")
         # -- Appearance: light / dark, text size
         app_tab = tab("Appearance")
         ttk.Label(app_tab, text="Theme", font=("Segoe UI", 9, "bold")).pack(anchor="w")
@@ -5524,7 +5535,7 @@ class App:
             tv.heading(c, text={"sp": "Species", "who": "Name"}.get(
                 c, f"Item {c[4:]}" if c.startswith("item") else f"Tame bonus {c[5:]}"))
             tv.column(c, width={"sp": 60, "who": 140}.get(c, 150 if c.startswith("item") else 55), anchor="w")
-        _table_scrollbars(top, tv)
+        _table_scrollbars(top, tv, freeze=2)
         last = min(montame.FIRST_SPECIES + montame.species_count(data) - 1, montame.LAST_SPECIES)
         history = []
 
@@ -6892,14 +6903,14 @@ class App:
                      "Yield", "Health", "Soil quality cost", "Growth speed", "Level gain", "Size gain",
                      "Yield gain",
                      *ITEM_COLS]
-        cols = ["#"] + show_cols + ["grows", "name"]
+        cols = ["#", "name"] + show_cols + ["grows"]
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=15)
         widths = {"#": 40, "grows": 150, "name": 150}
         heads = {"grows": "Grows in", "name": "Crop"}
         for c in cols:
             tv.heading(c, text=heads.get(c, c)); tv.column(c, width=widths.get(c, 58), anchor="w")
-        _table_scrollbars(top, tv)
+        _table_scrollbars(top, tv, freeze=2)
         _about, col_notes = nlcl.schema_notes(stem)
         col_notes = {**col_notes, "#": "The row number (the crop link a seed item points at).",
                      "grows": "The seasons it grows in (double-click or F2 for the tick boxes).",
@@ -6920,7 +6931,7 @@ class App:
                     continue
                 row = t.row(i, stem)
                 grows = "/".join(nlcl.crop_season_decode(row["Seasons"])["grows"])
-                vals = [i] + [nlcl.format_value(row[c], nlcl.fixed_bits(stem, c)) for c in show_cols] + [grows, nm]
+                vals = [i, nm] + [nlcl.format_value(row[c], nlcl.fixed_bits(stem, c)) for c in show_cols] + [grows]
                 tv.insert("", "end", iid=str(i), values=vals); shown += 1
                 if shown >= _max_rows():
                     break

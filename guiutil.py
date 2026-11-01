@@ -275,6 +275,10 @@ def wheel_handler(scroll, per_notch):
     return handler
 
 
+import weakref
+_COLUMN_WINDOWS = weakref.WeakSet()     # every live ColumnWindow (the option re-applies them)
+
+
 class ColumnWindow:
     """Show a wide Treeview's columns a window at a time, scrolled sideways by whole columns.
 
@@ -289,7 +293,8 @@ class ColumnWindow:
     changed, so overlays (the cell cursor) can follow."""
 
     def __init__(self, tv, hs, freeze=0):
-        self.tv, self.hs, self.freeze = tv, hs, freeze
+        self.tv, self.hs, self.want_freeze = tv, hs, freeze
+        _COLUMN_WINDOWS.add(self)
         dc = [str(c) for c in tv["displaycolumns"]]
         self.columns = [str(c) for c in tv["columns"]] if dc in ([], ["#all"]) else dc
         self.first = 0                          # index of the first scrolling column in view
@@ -300,6 +305,12 @@ class ColumnWindow:
         tv.bind("<ButtonRelease-1>", lambda e: self.apply()
                 if tv.identify_region(e.x, e.y) in ("separator", "heading") else None, add="+")
         self.apply()
+
+    @property
+    def freeze(self):
+        """The columns kept at the left: the table's row number / name columns, or none when
+        the "keep names in view" option is off."""
+        return self.want_freeze if sticky_columns() else 0
 
     @property
     def frozen(self):
@@ -527,6 +538,28 @@ def commit_entry(parent, var, on_commit, width=8, **kw):
 
 
 DEFAULT_LIST_ROWS = 5000
+
+
+def sticky_columns() -> bool:
+    """Whether tables keep their row number and name at the left while scrolled sideways
+    (setting "sticky_columns", on by default)."""
+    try:
+        from rf4s_modkit import gamepaths
+        return bool(gamepaths.get_setting("sticky_columns", True))
+    except ImportError:
+        return True
+
+
+def set_sticky_columns(on: bool) -> None:
+    """Save the setting and apply it to every table open now."""
+    from rf4s_modkit import gamepaths
+    gamepaths.set_setting("sticky_columns", bool(on))
+    for cw in list(_COLUMN_WINDOWS):
+        try:
+            cw._applied = None
+            cw.apply()
+        except tk.TclError:
+            pass
 
 
 def list_rows():

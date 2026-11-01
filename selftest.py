@@ -36,7 +36,7 @@ def _private_settings():
     for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden",
               "map_palette_favorites", "cutscene_editor", "theme", "backup_originals", "backup_previous",
               "backup_dir", "list_rows", "ui_scale", "cutscene_show_listing",
-              "cutscene_recent_instructions"):
+              "cutscene_recent_instructions", "sticky_columns"):
         d.pop(k, None)
     # the GUI tests expect a save to keep the original (backups are off by default for users)
     d["backup_originals"], d["backup_previous"] = True, 1
@@ -1382,6 +1382,15 @@ def test_bin_editors():
         q_set = nlcl.NlclTable(doc.cur_data).get(0, 1, "u8")
         doc._quest["revert"]()
         res["quest"] = q0 + (q_set, doc.cur_data == d)
+        # every table keeps # and the name at the left (narrow ones too); the option turns it off
+        import guiutil
+        app._show("rf3ItemList.bin", (B / "rf3ItemList.bin").read_bytes()); doc = app._doc
+        cw = getattr(doc._param_tree, "_colwin", None)
+        on = list(cw.frozen) if cw else None
+        guiutil.set_sticky_columns(False); root.update()
+        off = (list(cw.frozen), list(doc._param_tree["displaycolumns"])[:1]) if cw else None
+        guiutil.set_sticky_columns(True); root.update()
+        res["sticky"] = (on, off, list(cw.frozen) if cw else None)
         # the name-entry keyboard: keys show and are typed as their character
         d = (B / "rf3TxtNameEntryBoard_split2_1.bin").read_bytes()
         app._show("rf3TxtNameEntryBoard_split2_1.bin", d); doc = app._doc
@@ -1484,6 +1493,9 @@ def test_bin_editors():
     _check("rf3TxtQuest_split3_1: one Client column ('Name (id)') and one Request kind column with the "
            "board text ('25: Kill: %s x ...'); typing 27 sets the kind, Revert restores the file",
            res.get("quest") == (("#", "client", "kind"), True, "25: Kill: %s", 27, True), res.get("quest"))
+    _check("a narrow table (rf3ItemList) keeps # and the name at the left like the wide ones; the "
+           "Options switch turns that off and on for open tables at once",
+           res.get("sticky") == (["#", "name"], ([], ["#"]), ["#", "name"]), res.get("sticky"))
     _check("rf3TxtNameEntryBoard: keys show as their character (あ, the gap key as '(wide space)'), "
            "a typed い stores its UTF-8 bytes 0xE38184, typing あ back restores the file",
            res.get("keys") == ("あ", "(wide space)", "－", 0xE38184, True), res.get("keys"))
