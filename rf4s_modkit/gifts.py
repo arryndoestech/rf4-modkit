@@ -319,6 +319,15 @@ def load_categories(cat_data: bytes) -> list[list[Entry]]:
     return [g.get("disliked") or [] for g in t.groups]     # slot 0 = off1
 
 
+def check_category_member(kind: str) -> None:
+    """A gift category may only hold items: the game matches a gift against a category's
+    DIRECT item ids and never follows a category or item-range entry inside one, so those
+    would do nothing. Raises GiftError for anything but an item."""
+    if kind != "item":
+        raise GiftError("a gift category can only hold items -- the game does not follow a "
+                        "category or an item range inside a category")
+
+
 def category_items(cat_idx: int, categories: list, _seen=None) -> list[int]:
     """Flatten a category's member item ids (recursing into nested xrefs for display; NOTE the
     game itself only matches DIRECT item ids inside a category list). Cycle-guarded: a

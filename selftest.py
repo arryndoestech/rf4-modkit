@@ -1428,6 +1428,8 @@ def test_bin_editors():
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
         gf = doc._gift
+        res["gift_cols"] = (tuple(gf["cats"].heading(c, "text") for c in gf["cats"]["columns"]),
+                            "Herbert" in gf["cats"].set("0", "disliked"))
         gf["cats"].selection_set("3"); root.update()
         gf["cells"].set("new", "item", "1100")
         added = 1100 in [e.value for e in gifts.GiftTable.parse(doc.cur_data).groups[3]["disliked"]]
@@ -1507,6 +1509,8 @@ def test_bin_editors():
     if "montame_heads" in res:
         _check("rf3MonsterPresent headings are plain (Species, Name, Item 1, Tame bonus 1)",
                res["montame_heads"] == ("Species", "Name", "Item 1", "Tame bonus 1"), res["montame_heads"])
+    _check("rf3PresentCategory list: #, Items, Liked by, Disliked by (category 0 disliked by Herbert ...)",
+           res.get("gift_cols") == (("#", "Items", "Liked by", "Disliked by"), True), res.get("gift_cols"))
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
            "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
 
@@ -4742,6 +4746,28 @@ def test_gifts():
                sum(1 for e in g["disliked"] if e.code == gifts.SIGNATURE_DISLIKE_CODE) == 1)
     else:
         _skip("gift Raven checks", "no rf3PresentNpc25.bin present")
+    # a category holds items only (the game never follows a category / range inside one):
+    # the CLI refuses `gift set rf3PresentCategory.bin cat:N ...`, items still go in
+    pc = _first("rf3PresentCategory.bin")
+    if pc:
+        import rf4mod as _rf4, tempfile, shutil
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_giftcat_")) / "rf3PresentCategory.bin"
+        shutil.copyfile(pc, tmp)
+        before = tmp.read_bytes()
+        refused = {}
+        for tok in ("cat:3", "range:2"):
+            try:
+                _rf4.main(["gift", "set", str(tmp), tok, "liked", "-o", str(tmp)])
+                refused[tok] = False
+            except SystemExit as e:
+                refused[tok] = "only hold items" in str(e.code)
+        try:
+            gifts.check_category_member("item"); item_ok = True
+        except gifts.GiftError:
+            item_ok = False
+        _check("a gift category only takes items: `gift set rf3PresentCategory.bin cat:3 / range:2` is "
+               "refused and the file is untouched",
+               all(refused.values()) and item_ok and tmp.read_bytes() == before, refused)
     # cross-ref decode: raw 0x8100 -> xref idx 0 (was wrongly 512 via raw-0x7F00)
     _check("gift xref decode (0x8100 -> idx 0)",
            gifts._decode_target(0x8100) == ("xref", 0)

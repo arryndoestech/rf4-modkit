@@ -1550,6 +1550,11 @@ def cmd_gift_set(a):
     tier = a.tier.lower()
     if tier not in ("loved", "liked", "disliked", "neutral"):
         sys.exit("error: tier must be loved, liked, disliked or neutral")
+    if p.stem.lower() == "rf3presentcategory" and tier != "neutral":
+        try:
+            gifts.check_category_member(kind)
+        except gifts.GiftError as e:
+            sys.exit(f"error: {e}")
     try:
         if tier == "neutral":
             n = t.remove(kind, val, a.group)

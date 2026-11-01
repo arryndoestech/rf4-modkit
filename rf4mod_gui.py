@@ -5271,7 +5271,7 @@ class App:
         (rf3PresentNpcNN) can point at a category instead of single items; when the villager
         LOVES or LIKES the category, gifting one of its items grants that item's own friendship
         value stored HERE (the category entry's code, gifts.py), and a DISLIKED category is -5.
-        Left: the categories with a preview and the villagers using them; right: the selected
+        Left: the categories with the villagers who like (or love) and dislike them; right: the selected
         category's items (value editable), who uses it, add / remove / set value, Undo, Revert."""
         doc = self._doc
         items = _load_item_names()
@@ -5308,30 +5308,16 @@ class App:
         # ---- layout -----------------------------------------------------------------------
         head = ttk.Frame(doc.content, padding=(6, 4)); head.pack(fill="x")
         ttk.Label(head, text="Gift categories", font=("Segoe UI", 11, "bold")).pack(anchor="w")
-        expl = ttk.Label(head, foreground="#555", justify="left", text=(
-            "A category is a shared list of items that villagers' gift lists can point to. When a villager "
-            "loves or likes a category, giving one of its items grants the friendship points set for that "
-            "item here (the villager's own list does not decide it); when they dislike it, the gift is "
-            "−5. Each category can hold up to 255 items; only direct items count (the game does not "
-            "follow a category inside a category)."))
-        expl.pack(fill="x")
-        expl.bind("<Configure>", lambda e: expl.config(wraplength=max(200, e.width - 16)))
 
         foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
-        # the selected category's title + users span the full width, so both lists below start
-        # and end at the same height
-        sel_head = ttk.Frame(doc.content, padding=(6, 2)); sel_head.pack(fill="x")
-        title = ttk.Label(sel_head, font=("Segoe UI", 10, "bold")); title.pack(anchor="w")
-        used_lbl = ttk.Label(sel_head, foreground="#555", justify="left"); used_lbl.pack(fill="x")
-        used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 8)))
         body = ttk.PanedWindow(doc.content, orient="horizontal"); body.pack(fill="both", expand=True, padx=6)
         left = ttk.Frame(body); body.add(left, weight=2)
         right = ttk.Frame(body); body.add(right, weight=3)
 
-        ct = ttk.Treeview(left, columns=("n", "items", "preview", "used"), show="headings",
+        ct = ttk.Treeview(left, columns=("n", "items", "liked", "disliked"), show="headings",
                           selectmode="browse", height=18)
-        for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("preview", "Contains", 260),
-                         ("used", "Used by", 260)):
+        for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("liked", "Liked by", 260),
+                         ("disliked", "Disliked by", 260)):
             ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
         _table_scrollbars(left, ct); TableSort(ct)
 
@@ -5349,25 +5335,16 @@ class App:
         Tip(rm_b, "Take the selected items out of the category (Delete key).")
 
         # ---- fill -------------------------------------------------------------------------
-        def used_text(g, short=False):
+        def liked_by(g):                            # loved ones too, marked
             u = users[g]
-            parts = [f"{tier}: {', '.join(u[tier])}" for tier in ("loved", "liked", "disliked") if u[tier]]
-            if short:
-                n = sum(len(v) for v in u.values())
-                if not n:
-                    return "(nobody)"
-                if u["disliked"] and not (u["loved"] or u["liked"]):
-                    return f"disliked by {len(u['disliked'])}"
-                return "; ".join(parts)
-            return "  ·  ".join(parts) if parts else "No villager's gift list uses this category."
+            return ", ".join([f"{w} (loves)" for w in u["loved"]] + u["liked"])
 
         def fill_cats():
             keep = ct.selection()
             ct.delete(*ct.get_children())
             for g in range(ncat):
-                ids = [e.value for e in members(g) if e.kind == "item"]
-                prev = ", ".join(items.get(i, str(i)) for i in ids[:4]) + (" …" if len(ids) > 4 else "")
-                ct.insert("", "end", iid=str(g), values=(g, len(members(g)), prev, used_text(g, True)))
+                ct.insert("", "end", iid=str(g), values=(g, len(members(g)), liked_by(g),
+                                                         ", ".join(users[g]["disliked"])))
             ct.selection_set(keep if keep else ("0",))
 
         def cur():
@@ -5386,8 +5363,6 @@ class App:
             for k in select:
                 if mt.exists(str(k)):
                     mt.selection_add(str(k)); mt.focus(str(k)); mt.see(str(k))
-            title.config(text=f"Category {g} — {len(members(g))} items")
-            used_lbl.config(text="Used by  " + used_text(g))
 
         ct.bind("<<TreeviewSelect>>", lambda _e: fill_members())
 
@@ -5418,6 +5393,7 @@ class App:
             try:
                 if any(e.kind == "item" and e.value == it for e in members(g)):
                     raise gifts.GiftError(f"{items.get(it, it)} is already in category {g}")
+                gifts.check_category_member("item")         # items only: no category in a category
                 gifts.encode_target("item", it)
                 lst = table.groups[g].get("disliked")
                 if lst is None:
