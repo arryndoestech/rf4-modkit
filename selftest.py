@@ -1436,8 +1436,22 @@ def test_bin_editors():
         gf["members"].selection_set(gf["members"].selection()[0])
         gf["remove"]()
         res["gift"] = (added, doc.cur_data == d)
+        # Add category: a new last row, selected; Remove category takes it out again (nothing uses
+        # it), Undo of an Add restores the file too
+        rows = len(gf["cats"].get_children())
+        gf["add_category"](); root.update()
+        grown = (len(gf["cats"].get_children()), gf["cats"].selection())
+        if QUICK:
+            gf["undo"]()
+        else:
+            gf["remove_category"]()
+        res["gift_cat"] = (grown == (rows + 1, (str(rows),)), doc.cur_data == d,
+                           len(gf["cats"].get_children()) == rows)
     finally:
         root.destroy()
+    _check("gift categories editor: Add category adds a selected last row, Remove category (or Undo) "
+           "takes the unused new one out and the file is the stock one again",
+           res.get("gift_cat") == (True, True, True), res.get("gift_cat"))
     _check("AI script: the shown listing assembles back to the same file; a bad line is refused",
            res.get("ai") == (True, True), res.get("ai"))
     _check("skill XP curve: the header names the skills (Farming...); a typed XP cell changes that "
@@ -4796,6 +4810,55 @@ def test_gifts():
         _check("gift categories (21 groups; cat0 = trash)",
                len(cats) == 21 and any(e.kind == "item" for e in cats[0]))
         _check("gift category resolves items", len(gifts.category_items(5, cats)) > 20)  # cat5 flowers
+        # add / remove a category: a new one goes at the end with its own (empty) member list --
+        # the readers dereference off1 without a zero check -- and the cap is the last index whose
+        # target 0x8100 + n is still a u16 (one more would be target 0 = item 0)
+        raw = cat.read_bytes()
+        t = gifts.GiftTable.parse(raw)
+        n0 = len(t.groups)
+        g = gifts.add_category(t)
+        built = t.build()
+        t2 = gifts.GiftTable.parse(built)
+        import struct as _st
+        new_off1 = _st.unpack_from("<I", built, gifts.GROUP_OFF + 4 + 12 * g)[0]
+        same = all(a == b for a, b in zip(t2.groups, gifts.GiftTable.parse(raw).groups))
+        refs = {k: ["x"] for k in range(n0)}                    # every shipped category in use
+        gifts.remove_category(t, g, refs, [])
+        refused = []
+        for idx, rf, unk in ((0, refs, []), (n0 - 2, {n0 - 1: ["later"]}, []), (n0 - 1, {}, ["computed"])):
+            try:
+                gifts.check_remove_category(gifts.GiftTable.parse(raw), idx, rf, unk)
+                refused.append(False)
+            except gifts.GiftError:
+                refused.append(True)
+        full = gifts.GiftTable([{"disliked": [], "liked": None, "loved": None}] * (gifts.MAX_CATEGORIES - 1))
+        gifts.add_category(full)
+        try:
+            gifts.add_category(full); capped = False
+        except gifts.GiftError:
+            capped = True
+        _check(f"gift categories: Add puts an empty category {n0} at the end (its member list written, "
+               "the others unchanged), removing it gives the stock file back; removal is refused while "
+               "it or a later category is used or a script computes its category; the cap is "
+               f"{gifts.MAX_CATEGORIES} (target 0xFFFF)",
+               (g, len(t2.groups), t2.groups[g]["disliked"], new_off1 > 0, same, t.build() == raw,
+                refused, capped, gifts.encode_target("xref", gifts.MAX_CATEGORIES - 1))
+               == (n0, n0 + 1, [], True, True, True, [True, True, True], True, 0xFFFF))
+        # the real game: every shipped category is used by a villager or a script (op 437)
+        if not QUICK:
+            from rf4s_modkit import gamepaths as _gp
+            refs, unknown = gifts.game_category_references(_gp.bundle_dir(), t)
+            _check("gift categories in the game folder: all 21 are used (villagers' lists, event "
+                   "scripts' IsItemInCategoryList), no script computes its category, so none can be removed",
+                   all(refs.get(k) for k in range(n0)) and not unknown
+                   and any("rf3.mc" in w for w in refs.get(1, [])), (sorted(refs), unknown))
+        import rf4mod as _rf4c, tempfile as _tf, shutil as _sh, contextlib as _cl, io as _io
+        tmpc = pathlib.Path(_tf.mkdtemp(prefix="rf4s_giftadd_")) / "rf3PresentCategory.bin"
+        _sh.copyfile(cat, tmpc)
+        with _cl.redirect_stdout(_io.StringIO()):
+            _rf4c.main(["gift", "add-category", "--file", str(tmpc), "-o", str(tmpc)])
+        _check("CLI `gift add-category` appends one empty category",
+               len(gifts.GiftTable.parse(tmpc.read_bytes()).groups) == n0 + 1)
     p = _first("rf3PresentNpc01.bin")
     if not p:
         _skip("gift render", "no rf3PresentNpc01.bin present")

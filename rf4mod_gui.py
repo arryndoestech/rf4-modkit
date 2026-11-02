@@ -5320,7 +5320,7 @@ class App:
                           npc_text=npc_text, state_label=state_label, st=st)
 
     def _view_gift_categories(self, name, data):
-        """rf3PresentCategory -- the 21 shared gift categories. A villager's gift list
+        """rf3PresentCategory -- the shared gift categories (21 shipped; Add / Remove category change the count). A villager's gift list
         (rf3PresentNpcNN) can point at a category instead of single items; when the villager
         LOVES or LIKES the category, gifting one of its items grants that item's own friendship
         value stored HERE (the category entry's code, gifts.py), and a DISLIKED category is -5.
@@ -5330,10 +5330,9 @@ class App:
         items = _load_item_names()
         chars = _load_char_names()
         table = gifts.GiftTable.parse(data)
-        ncat = len(table.groups)
 
         # which villagers point at each category, and in which tier
-        users = {i: {"loved": [], "liked": [], "disliked": []} for i in range(ncat)}
+        users = {}
         for nn in range(1, 28):
             raw = _find_extracted(f"rf3PresentNpc{nn:02d}.bin")
             if not raw:
@@ -5345,8 +5344,11 @@ class App:
             who = chars.get(nn, "") or f"NPC {nn}"
             for tier in gifts.TIERS:
                 for e in nt.tier(tier):
-                    if e.kind == "xref" and e.value in users and who not in users[e.value][tier]:
-                        users[e.value][tier].append(who)
+                    u = users.setdefault(e.value, {"loved": [], "liked": [], "disliked": []}) \
+                        if e.kind == "xref" else None
+                    if u is not None and who not in u[tier]:
+                        u[tier].append(who)
+        no_users = {"loved": [], "liked": [], "disliked": []}
 
         def members(g):
             return table.groups[g].get("disliked") or []           # a category keeps its items in off1
@@ -5383,12 +5385,21 @@ class App:
         body.bind("<ButtonRelease-1>", dragged, add="+")
         doc._gift_split = body                                                  # (selftest)
 
-        ct = ttk.Treeview(left, columns=("n", "items", "liked", "disliked"), show="headings",
+        cbar = ttk.Frame(left); cbar.pack(side="bottom", fill="x", pady=(2, 0))
+        add_cat_b = ttk.Button(cbar, text="Add category"); add_cat_b.pack(side="left")
+        Tip(add_cat_b, "Add an empty gift category at the end of the list (existing categories "
+                       f"keep their numbers). The game can address {gifts.MAX_CATEGORIES} categories.")
+        rm_cat_b = ttk.Button(cbar, text="Remove category"); rm_cat_b.pack(side="left", padx=4)
+        Tip(rm_cat_b, "Remove the selected category. Refused while a villager's gift list, another "
+                      "category or an event script uses it or any category after it, because the "
+                      "later categories move down one number.")
+        lt = ttk.Frame(left); lt.pack(fill="both", expand=True)
+        ct = ttk.Treeview(lt, columns=("n", "items", "liked", "disliked"), show="headings",
                           selectmode="browse", height=11)
         for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("liked", "Liked by", 420),
                          ("disliked", "Disliked by", 420)):
             ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
-        _table_scrollbars(left, ct); TableSort(ct)
+        _table_scrollbars(lt, ct); TableSort(ct)
 
         mf = ttk.Frame(right); mf.pack(fill="both", expand=True)
         mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=11)
@@ -5405,16 +5416,17 @@ class App:
 
         # ---- fill -------------------------------------------------------------------------
         def liked_by(g):                            # loved ones too, marked
-            u = users[g]
+            u = users.get(g, no_users)
             return ", ".join([f"{w} (loves)" for w in u["loved"]] + u["liked"])
 
-        def fill_cats():
-            keep = ct.selection()
+        def fill_cats(select=None):
+            keep = (str(select),) if select is not None else ct.selection()
             ct.delete(*ct.get_children())
-            for g in range(ncat):
+            for g in range(len(table.groups)):
                 ct.insert("", "end", iid=str(g), values=(g, len(members(g)), liked_by(g),
-                                                         ", ".join(users[g]["disliked"])))
-            ct.selection_set(keep if keep else ("0",))
+                                                         ", ".join(users.get(g, no_users)["disliked"])))
+            keep = [k for k in keep if ct.exists(k)] or [str(len(table.groups) - 1)]
+            ct.selection_set(keep); ct.see(keep[0])
 
         def cur():
             s = ct.selection()
@@ -5438,9 +5450,9 @@ class App:
         # ---- edits ------------------------------------------------------------------------
         history = []
 
-        def changed(msg, select=()):
+        def changed(msg, select=(), cat=None):
             doc.cur_data = table.build()
-            fill_cats(); fill_members(select)
+            fill_cats(cat); fill_members(select)
             self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
 
         def snapshot():
@@ -5510,6 +5522,49 @@ class App:
             table.groups[g]["disliked"] = [e for k, e in enumerate(lst) if k not in set(sel)]
             changed(f"Removed {', '.join(names[:3])}{' …' if len(names) > 3 else ''} from category {g}")
 
+        def add_category(*_):
+            before = table.build()
+            try:
+                g = gifts.add_category(table)
+            except gifts.GiftError as e:
+                messagebox.showerror("Add category", str(e), parent=doc.content)
+                return
+            history.append(before)
+            note = ""
+            if users.get(g):                        # a reference past the old end now matches
+                u = users[g]
+                note = f" ({', '.join(u['loved'] + u['liked'] + u['disliked'])} already pointed at it)"
+            changed(f"Added category {g}{note}", cat=g)
+
+        def references():
+            bdir = gamepaths.find_bundle_dir()
+            if bdir is None:
+                raise gifts.GiftError("no game folder is set, so the villagers' gift lists and "
+                                      "the event scripts cannot be checked")
+            return gifts.game_category_references(bdir, table)
+
+        def remove_category(*_):
+            g = cur()
+            self.status.config(text="Checking who uses the gift categories…")
+            doc.content.config(cursor="watch"); doc.content.update_idletasks()
+            try:
+                refs, unknown = references()
+                gifts.check_remove_category(table, g, refs, unknown)
+            except gifts.GiftError as e:
+                self.status.config(text="")
+                messagebox.showerror("Remove category", str(e), parent=doc.content)
+                return
+            finally:
+                doc.content.config(cursor="")
+            n = len(members(g))
+            if n and not messagebox.askyesno(
+                    "Remove category", f"Category {g} holds {n} item(s). Remove it?", parent=doc.content):
+                self.status.config(text="")
+                return
+            snapshot()
+            gifts.remove_category(table, g, refs, unknown)
+            changed(f"Removed category {g}", cat=max(0, g - 1))
+
         def undo(*_):
             if history:
                 restore(history.pop())
@@ -5531,7 +5586,9 @@ class App:
             title="Gift categories")
         mt.bind("<Delete>", remove)
         rm_b.config(command=remove)
-        fill_cats(); fill_members()
+        add_cat_b.config(command=add_category)
+        rm_cat_b.config(command=remove_category)
+        fill_cats(0); fill_members()
         # the category list gets half the width once the window is laid out (room for "Used by")
         sash_done = {"d": False}
 
@@ -5541,7 +5598,9 @@ class App:
                 later(body, lambda: body.sashpos(0, e.width // 2))
         body.bind("<Configure>", first_layout, add="+")
         doc._gift = dict(cats=ct, members=mt, cells=cells, add=add, remove=remove, undo=undo,
-                         revert=revert, users=users, table=lambda: table)      # (selftest)
+                         revert=revert, users=users, table=lambda: table,      # (selftest)
+                         add_category=add_category, remove_category=remove_category,
+                         references=references)
 
     def _view_montame(self, name, data):
         """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849): one row

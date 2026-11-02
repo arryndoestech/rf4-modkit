@@ -1296,7 +1296,7 @@ def _gift_file(target: str) -> tuple[pathlib.Path, int]:
 
 
 def _gift_categories():
-    """Load rf3PresentCategory (archive 14850) -> the 21 shared cross-ref item groups, or None."""
+    """Load rf3PresentCategory (archive 14850) -> the shared cross-ref item groups (21 shipped), or None."""
     from rf4s_modkit import gifts
     p = _resolve("rf3PresentCategory.bin")
     return gifts.load_categories(p.read_bytes()) if p.is_file() else None
@@ -1470,6 +1470,43 @@ def cmd_gift_categories(a):
     for idx, grp in enumerate(cats):
         ids = gifts.category_items(idx, cats)
         print(f"cat {idx:>2} ({len(ids)}): " + ", ".join(nf(i) or str(i) for i in ids))
+
+
+def _category_file(a):
+    from rf4s_modkit import gifts
+    p = _resolve(a.file) if getattr(a, "file", None) else _resolve("rf3PresentCategory.bin")
+    if not p.is_file():
+        sys.exit("error: rf3PresentCategory.bin not found (pass --file)")
+    try:
+        return p, gifts.GiftTable.parse(p.read_bytes())
+    except gifts.GiftError as e:
+        sys.exit(f"error: {p.name}: {e}")
+
+
+def cmd_gift_add_category(a):
+    """Append an empty gift category (rf3PresentCategory) and print its number."""
+    from rf4s_modkit import gifts
+    p, t = _category_file(a)
+    try:
+        g = gifts.add_category(t)
+        out = _write_out(a, p, t.build())
+    except gifts.GiftError as e:
+        sys.exit(f"error: {e}")
+    print(f"added gift category {g} (target 0x{gifts.XREF_BASE + g:04X}; use cat:{g}); "
+          f"{len(t.groups)} of {gifts.MAX_CATEGORIES} -- wrote {out}")
+
+
+def cmd_gift_remove_category(a):
+    """Remove a gift category, refused while anything uses it or a later one."""
+    from rf4s_modkit import gifts
+    p, t = _category_file(a)
+    try:
+        refs, unknown = gifts.game_category_references(BUNDLE_DIR, t)
+        gifts.remove_category(t, a.index, refs, unknown)
+        out = _write_out(a, p, t.build())
+    except gifts.GiftError as e:
+        sys.exit(f"error: {e}")
+    print(f"removed gift category {a.index}; {len(t.groups)} left -- wrote {out}")
 
 
 def cmd_gift_monster(a):
@@ -4300,8 +4337,18 @@ def build_parser():
     gf0.add_argument("target"); gf0.set_defaults(func=cmd_gift_show)
     gf1 = gfsub.add_parser("list", help="one-line loved-items summary for all 27 NPCs")
     gf1.set_defaults(func=cmd_gift_list)
-    gf2 = gfsub.add_parser("categories", help="dump the 21 shared gift categories (rf3PresentCategory)")
+    gf2 = gfsub.add_parser("categories", help="dump the shared gift categories (rf3PresentCategory)")
     gf2.set_defaults(func=cmd_gift_categories)
+    gf10 = gfsub.add_parser("add-category", help="append an empty gift category (existing numbers stay)")
+    gf10.add_argument("--file", help="rf3PresentCategory.bin (default: the game's copy)")
+    gf10.add_argument("-o", "--out")
+    gf10.set_defaults(func=cmd_gift_add_category)
+    gf11 = gfsub.add_parser("remove-category", help="remove a gift category; refused while a villager's "
+                            "gift list, a category or an event script uses it or a later one")
+    gf11.add_argument("index", type=int)
+    gf11.add_argument("--file", help="rf3PresentCategory.bin (default: the game's copy)")
+    gf11.add_argument("-o", "--out")
+    gf11.set_defaults(func=cmd_gift_remove_category)
     gf3 = gfsub.add_parser("monster", help="monster taming-food preferences (rf3MonsterPresent)")
     gf3.add_argument("species", nargs="?", help="species id (omit to list all)")
     gf3.set_defaults(func=cmd_gift_monster)

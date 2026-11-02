@@ -69,6 +69,15 @@ NEUTRAL_FP = 5                    # unlisted item: +5 (once per day)
 MAX_LIST_ENTRIES = 255            # u8 loop counters in GiftTable_FindEntryByItemIdOrRangeOrCrossRef
 MAX_ITEM_ID = 0x7FF               # the gifted item is masked to 11 bits before the compare
 RANGE_TAGS = 12                   # g_itemCategoryRangeTable holds 12 [min, max) pairs
+XREF_BASE = 0x8100                # entry target of gift category 0
+# Most gift categories the game can address (verified 2026-11-03). Every reader takes the
+# count from the file (+24) and turns a target into an index with a 16-bit add of 0x7F00:
+# GiftTable_FindEntryByItemIdOrRangeOrCrossRef +0x22A700, Npc_RollFavoriteItem +0x22F9C0 and
+# script op 437 IsItemInCategoryList +0x211830. Target 0x8100 + n must stay a u16, so
+# n <= 0x7EFF: category 0x7F00 would be target 0x0000, i.e. item 0. All three loop over
+# groups / entries with counters of at least 16 bits, so this is the only limit.
+MAX_CATEGORIES = 0x10000 - XREF_BASE
+CATEGORY_LIST_OP = 437            # script op IsItemInCategoryList(item, 0x8100 + category)
 
 Entry = namedtuple("Entry", "kind value code")   # kind: item|category|xref
 
@@ -88,9 +97,9 @@ def _decode_target(raw: int) -> tuple[str, int]:
     # idx = (raw + 0x7F00) & 0xFFFF = raw - 0x8100 (GiftTable_FindEntryByItemIdOrRangeOrCrossRef).
     if raw < 0x8000:
         return ("item", raw)
-    if raw < 0x8100:
+    if raw < XREF_BASE:
         return ("category", raw & 0xFF)
-    return ("xref", raw - 0x8100)
+    return ("xref", raw - XREF_BASE)
 
 
 def encode_target(kind: str, value: int) -> int:
@@ -107,9 +116,9 @@ def encode_target(kind: str, value: int) -> int:
                             f"g_itemCategoryRangeTable has {RANGE_TAGS} entries)")
         return 0x8000 | value
     if kind == "xref":
-        if not (0 <= value <= 0xFFFF - 0x8100):
-            raise GiftError(f"category xref {value} out of range")
-        return 0x8100 + value
+        if not (0 <= value < MAX_CATEGORIES):
+            raise GiftError(f"gift category {value} out of range (0..{MAX_CATEGORIES - 1})")
+        return XREF_BASE + value
     raise GiftError(f"unknown entry kind {kind!r}")
 
 
@@ -147,7 +156,7 @@ class GiftTable:
             raise GiftError(f"not an NLCL gift table (magic={data[:4]!r})")
         build_date = struct.unpack_from("<I", data, 4)[0]
         count = struct.unpack_from("<I", data, GROUP_OFF)[0]
-        if not (0 < count < 64):
+        if not (0 < count <= MAX_CATEGORIES) or GROUP_OFF + 4 + 12 * count > len(data):
             raise GiftError(f"implausible group count {count}")
         groups = []
         for i in range(count):
@@ -308,7 +317,7 @@ ITEM_RANGE_TABLE = {
 
 
 def load_categories(cat_data: bytes) -> list[list[Entry]]:
-    """Parse rf3PresentCategory (archive 14850) -> its 21 shared gift-category item lists,
+    """Parse rf3PresentCategory (archive 14850) -> its shared gift-category item lists (21 shipped),
     indexed by cross-ref id. An NPC entry whose target is 0x8100+idx (kind='xref', value=idx)
     resolves to categories[idx]. Each group stores its member items in the first of its 3
     offsets (off2/off3 are 0 in the category file)."""
@@ -326,6 +335,126 @@ def check_category_member(kind: str) -> None:
     if kind != "item":
         raise GiftError("a gift category can only hold items -- the game does not follow a "
                         "category or an item range inside a category")
+
+
+def add_category(table: "GiftTable") -> int:
+    """Append an empty gift category to rf3PresentCategory; returns its index. Categories are
+    addressed by position (target 0x8100 + index), so a new one goes at the end and every
+    existing reference keeps its meaning. Its member list is written even while empty: the
+    readers dereference off1 without a zero check, and offset 0 would make them read the file
+    header as a list."""
+    n = len(table.groups)
+    if n >= MAX_CATEGORIES:
+        raise GiftError(f"the game can address at most {MAX_CATEGORIES} gift categories "
+                        f"(target 0x8100 + index must fit 16 bits)")
+    table.groups.append({"disliked": [], "liked": None, "loved": None})
+    return n
+
+
+def category_references(npc_tables, container=None) -> tuple[dict, list]:
+    """Who points at which gift category: ({index: [description]}, [description of a script
+    argument that is not a constant]). `npc_tables` = {file number: GiftTable} (the villagers'
+    rf3PresentNpcNN; 0 = rf3PresentCategory itself, whose cross-refs are listed too);
+    `container` = the rf3.mc script.Container (op 437 IsItemInCategoryList), or None."""
+    refs, unknown = {}, []
+    for nn, t in sorted(npc_tables.items()):
+        who = "rf3PresentCategory" if nn == 0 else f"rf3PresentNpc{nn:02d}"
+        for gi, g in enumerate(t.groups):
+            for tier in TIERS:
+                for e in g.get(tier) or []:
+                    if e.kind == "xref":
+                        where = f"{who} category {gi}" if nn == 0 else f"{who} ({tier})"
+                        if where not in refs.setdefault(e.value, []):
+                            refs[e.value].append(where)
+    if container is not None:
+        from . import script
+        for bi, bank in enumerate(container.banks):
+            try:
+                scenes = script.disassemble_bank(bank)
+            except Exception:  # noqa: BLE001 - an undecodable bank: skipped, like the game's own scans
+                continue
+            seen = set()
+            for sc in scenes:
+                for pc, st in sc.stmts.items():
+                    if st.op != CATEGORY_LIST_OP or len(st.args) < 2 or pc in seen:
+                        continue
+                    seen.add(pc)
+                    where = f"rf3.mc bank {bi} at 0x{pc:04x}"
+                    v, ok = script.arg_constant(bank.data, st.args[1])
+                    if not ok or v is None:
+                        unknown.append(where)
+                        continue
+                    idx = (int(v) + 0x7F00) & 0xFFFF            # the handler's u16 index
+                    refs.setdefault(idx, []).append(where)
+    return refs, unknown
+
+
+def game_category_references(bundle, category_table: "GiftTable") -> tuple[dict, list]:
+    """category_references() over the game folder: every copy under Bundle/ of each
+    rf3PresentNpcNN.bin and of rf3.mc (the union, so it does not matter which copy the game
+    loads), plus `category_table` (the category file being edited) for its own cross-refs.
+    A packed bundlePatch*.mbundle (which would carry the rf3.mc the game uses) cannot be
+    scanned: it counts as an unknown reference, so removal stays refused."""
+    import pathlib
+    from . import mbundle, script
+    root = mbundle.bundle_dir(bundle)
+    index = mbundle.loose_index(root)
+    tables = {0: category_table}
+    for nn in range(1, 28):
+        for rel in index.get(f"rf3PresentNpc{nn:02d}.bin", ()):
+            try:
+                t = GiftTable.parse((root / rel).read_bytes())
+            except (OSError, GiftError):
+                continue
+            tables.setdefault(nn, GiftTable([])).groups.extend(t.groups)
+    refs, unknown = category_references(tables)
+    for packed in mbundle.PATCH_BUNDLES:
+        if (root / packed).is_file():
+            unknown.append(f"{packed} (still packed: its rf3.mc cannot be checked)")
+    copies = index.get("rf3.mc", ())
+    if not copies:
+        unknown.append("rf3.mc (not found under Bundle/)")
+    for rel in copies:
+        p = pathlib.Path(root / rel)
+        try:
+            c = script.Container(p.read_bytes())
+        except Exception as e:  # noqa: BLE001 - an unreadable script file blocks removal
+            unknown.append(f"{rel} (cannot be read: {e})")
+            continue
+        r, u = category_references({}, c)
+        for k, v in r.items():
+            lst = refs.setdefault(k, [])
+            lst.extend(f"{rel}: {x[len('rf3.mc '):]}" if x.startswith("rf3.mc ") else x for x in v)
+        unknown += u
+    return refs, unknown
+
+
+def check_remove_category(table: "GiftTable", idx: int, refs: dict, unknown: list) -> None:
+    """Raise GiftError unless gift category `idx` can go without changing what anything means.
+    Removing it moves every later category down one, so nothing may point at it OR at any
+    category after it; a script whose category argument is computed at run time could point
+    anywhere, so it blocks every removal."""
+    n = len(table.groups)
+    if not 0 <= idx < n:
+        raise GiftError(f"there is no gift category {idx} (0..{n - 1})")
+    if n == 1:
+        raise GiftError("the last gift category cannot be removed")
+    if unknown:
+        raise GiftError("an event script picks its gift category at run time ("
+                        + ", ".join(unknown[:3]) + ("…" if len(unknown) > 3 else "")
+                        + "), so no category can be removed safely")
+    used = [(k, refs[k]) for k in sorted(refs) if idx <= k < n and refs[k]]
+    if used:
+        k, who = used[0]
+        what = "it" if k == idx else f"category {k}, which would become {k - 1}"
+        raise GiftError(f"category {idx} cannot be removed: {', '.join(who[:3])}"
+                        f"{' …' if len(who) > 3 else ''} uses {what}")
+
+
+def remove_category(table: "GiftTable", idx: int, refs: dict, unknown: list) -> None:
+    """Remove gift category `idx` after check_remove_category."""
+    check_remove_category(table, idx, refs, unknown)
+    del table.groups[idx]
 
 
 def category_items(cat_idx: int, categories: list, _seen=None) -> list[int]:
