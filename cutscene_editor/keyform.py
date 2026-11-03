@@ -1,6 +1,6 @@
 """The keys of one trigger as a form: one labelled field per key with a picker that fits it
 (a map, a character, an item, an em.bin condition, a festival, a flag, a date), an "any"
-box where -1 means any, the area keys as one box with Draw on the map, and Add / Remove
+box where -1 means any, the area keys as one box with Select… (drag it on the map), and Add / Remove
 for the keys a trigger can list several of. Used by the Triggers pane (TriggerDetail) and
 the New scene dialog. The wording comes from entry_types (label / help / pick per key)."""
 from __future__ import annotations
@@ -369,7 +369,7 @@ class KeyForm(ttk.Frame):
             var.trace_add("write", lambda *_a: self._changed())
             self.box.append(var)
         self.row += 1
-        b = ttk.Button(self, text="📍 Draw the area on the map…", command=self.draw_box)
+        b = ttk.Button(self, text="📍 Select…", command=self.draw_box)
         b.grid(row=self.row, column=1, sticky="w", pady=(0, 2))
         Tip(b, "Drag the trigger area on the map (1/8-tile units). The map's other trigger "
                "areas show dashed.")
@@ -500,7 +500,7 @@ class KeyForm(ttk.Frame):
         return out
 
     def map_id(self):
-        """(map id the area is on, why it is fixed or None, note) for Draw the area."""
+        """(map id the area is on, why it is fixed or None, note) for Select…."""
         mapf = next((f for f in self.fields if f.spec.get("pick") == "map"), None)
         if mapf is not None:
             try:

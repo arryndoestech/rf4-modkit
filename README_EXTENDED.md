@@ -620,7 +620,7 @@ which keys, the ordering caveat), its keys and a body. The keys are a form, the 
 dialog and in the pane beside the list: one labelled field per key with a line of help and a picker
 that fits it (a map, a character, an item, an em.bin condition, a festival, a flag, a date), an *any*
 box where the key can match anything, the area of a region trigger as x / y / width / height
-(*📍 Draw the area on the map…* drags it on the map, the map's other areas dashed), and
+(*📍 Select…* drags it on the map, the map's other areas dashed), and
 *+ Add another …* / ✕ for the keys a trigger can list several of (several maps, items or festivals:
 any of them matches; the required characters of a town-event scene: all of them). Each key keeps
 the tag the game writes it with (a map, a character, the spouse / child as a flag reference); a note warns when a new trigger would

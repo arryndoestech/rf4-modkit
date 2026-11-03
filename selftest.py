@@ -5888,7 +5888,7 @@ def test_open_map_and_regions():
         root.after(300, drive)
         ce_dialogs.ask_new_scene(ex.frame, ex, ex.doc.container.banks[407], default_type=3)
         _check("New scene, PlayerRegionTrigger: the keys are a form (Area + 'Only when', ticked "
-               "'always'); '📍 Draw the area…' opens the picker on the bank's map (fixed) and the "
+               "'always'); '📍 Select…' opens the picker on the bank's map (fixed) and the "
                "box lands in the Area",
                got.get("shown") and got.get("mid") == 159 and got.get("lock")
                and got.get("labels") == ["Only when"] and got.get("any")
@@ -17167,7 +17167,7 @@ def test_cutscene_toolbox():
             bp = cx.trigger_detail.draw_box()
             root.update()
             bp.box = (100, 200, 180, 260); bp._use(); root.update()
-            _check("Triggers pane: 'Draw the box on the map' opens the bank's map with the box and fills the fields",
+            _check("Triggers pane: 'Select…' opens the bank's map with the box and fills the fields",
                    bp.map_id == 60 and bp.locked and [v.get() for v in cx.trigger_detail.form.box] == ["100", "200", "80", "60"])
             cx.nb.select(cx.view); root.update()
             back = cx.right_pane == "inspector" and cx.inspector.winfo_manager() == "pack" \
