@@ -1195,8 +1195,8 @@ RECIPES = {
         "then the item ids. First match wins.",
     68: "Scene that runs once the last monster on a map has been defeated, when a game flag "
         "has a given value. Bank: the map's tail bank, or a story / sub-event primary bank. "
-        "Keys: map id, game-flag bit id, required value -- pair it with `em new-var` to get a "
-        "flag of your own. First match wins.",
+        "Keys: map id, a game flag (a packed flag reference, tag 2), required value -- pair it "
+        "with `em new-var` to get a flag of your own. First match wins.",
     69: "Story scene on a map at a given chapter. Bank: the story bank for that chapter "
         "(primary 211..224). Keys: map id and chapter (-1 = any). First match wins.",
     72: "Chapter-gated talk line. Bank: the story bank (primary 211+). Keys: npc char id "
@@ -1207,6 +1207,322 @@ for _t, _r in RECIPES.items():
     if _t in ENTRY_TYPES:
         ENTRY_TYPES[_t].setdefault("recipe", _r)
 del _t, _r
+
+
+# ---------------------------------------------------------------------------
+# The keys in the editor's words (added 2026-11-03). Every key spec above gets:
+#   label  what the field is called in the editor
+#   help   one or two plain sentences (no engine detail; that stays in `meaning`)
+#   pick   how the value is chosen: map | npc | monster | item | condition | festival |
+#          flag | date | choice | number  (the x1/y1/x2/y2 keys are drawn as one box)
+#   tag    the sub-record tag a NEW key of this kind is written with (the shipped file's)
+#   any    what -1 means, where the key is a wildcard ("" = -1 is not special)
+#   many   for an "n+" key: "any" = the trigger matches when any one of the values does,
+#          "all" = every listed value must hold, "pairs" = (monster, condition) pairs
+#   options  for pick == "choice": [(value, text)]
+# Read from the matchers named above: a list key is walked value by value and the entry
+# matches on the first equal one (NpcActionEntry_ResolveForFestivalPhase +0x221400 is the
+# pattern every "n+" reader follows), except types 63..67 (every NPC is a required bit)
+# and 17 (pairs). The tags are the ones the shipped rf3.mc uses at that key position.
+# ---------------------------------------------------------------------------
+FESTIVAL_NAMES = {
+    1: "Bean Toss Contest", 2: "Eating Contest", 3: "De-Fluffing Festival", 4: "Turnip Festival",
+    5: "Turnip Flurry", 6: "Quiz Contest", 7: "Buddy Battle", 8: "Fishing Frenzy Contest",
+    9: "Big Catch Contest", 10: "Squid Catch Contest", 11: "Fish Variety Contest",
+    12: "Spring Harvest Festival", 13: "Summer Harvest Festival", 14: "Autumn Harvest Festival",
+    15: "Winter Harvest Festival", 16: "Cooking Contest", 17: "Handicraft Contest",
+    18: "New Year's Day", 19: "Beach Day", 21: "New Year's Eve", 22: "Firefly Festival",
+    23: "Valentine's Day", 24: "White Day", 25: "Christmas",
+}   # REG_FESTA ids (5-bit); 20 is unused. The calendar board's English names.
+SEASONS = ("Spring", "Summer", "Autumn", "Winter")
+SPOUSE_FLAG, CHILD_FLAG = 16582, 16638     # packed REG_WIFE_ID / REG_CHILD_ID (tag 2)
+
+_BOX_UI = {"label": "Area", "help": "The rectangle on the map the player walks into "
+           "(1/8-tile units, like positions). Draw it on the map.", "pick": "box", "tag": 1}
+_STEP_HELP = ("The town event's step (REG_SUBEV_U8A). The scene is lined up once the event "
+              "reaches this step and plays while it is exactly this step.")
+_NPC_REQ = {"label": "Required character", "pick": "npc", "tag": 3, "many": "all",
+            "help": "Every listed character must be at their spot for the scene to play. "
+                    "Add one row per character."}
+_MAP_ENTERED = {"label": "Map entered", "pick": "map", "tag": 4,
+                "help": "Plays when the player arrives on this map."}
+_MAP_LEFT = {"label": "Map left", "pick": "map", "tag": 4,
+             "help": "Plays as the next map loads, after the player left this map."}
+_MAP_ON = {"label": "Map", "pick": "map", "tag": 4, "help": "The map the player must be on."}
+_CHAPTER = {"label": "Story progress", "pick": "number", "tag": 1,
+            "help": "The main story's progress value (REG_MAIN_SCENARIO)."}
+_COND_ZERO = {"label": "Only when", "pick": "condition", "tag": 1, "any": "",
+              "help": "An em.bin condition that must be true when the scene would play; "
+                      "0 = no condition."}
+_TALK_COUNT = {"label": "Talk count", "pick": "number", "tag": 1, "many": "any",
+               "help": "How many times the player has talked to them at this friendship level; "
+                       "each number is one line. Several numbers: any of them."}
+_FESTIVAL = {"label": "Festival", "pick": "festival", "tag": 1, "many": "any",
+             "help": "The festival of the day (for the eve: tomorrow's). Several: any of them."}
+
+KEY_UI = {   # type -> {key name: ui}
+    0: {"map": {"label": "Map the player is on", "pick": "map", "tag": 4, "many": "any",
+                "any": "any map (the fallback line)",
+                "help": "The line plays when the player talks to them on this map. Several maps: "
+                        "any of them. 'Any map' is only used when no trigger names the map."}},
+    2: {"key": {"label": "Event actor key", "pick": "number", "tag": 1, "many": "any",
+                "help": "The key the scene's SpawnEventActor gave the actor (48 to 65535). "
+                        "Talking to or touching that actor plays this scene. 1025 and up are "
+                        "the boss-defeat and field-object scenes the game queues itself."}},
+    3: {"condition": {"label": "Only when", "pick": "condition", "tag": 1, "any": "always",
+                      "help": "An em.bin condition that must be true; 'always' = no condition."}},
+    4: {"item": {"label": "Item given", "pick": "item", "tag": 1, "many": "any", "any": "any item",
+                 "help": "The item the player gives them. 'Any item' = one scene for every gift "
+                         "(every shipped trigger does this)."}},
+    5: {"event_key": {"label": "Event actor key", "pick": "number", "tag": 1,
+                      "help": "The key of the event actor the item is thrown at (its SpawnEventActor key)."},
+        "consume": {"label": "Items used up", "pick": "number", "tag": 1, "any": "9",
+                    "help": "How many of the thrown stack are used up: 0 = none."},
+        "item": {"label": "Item thrown", "pick": "item", "tag": 1, "many": "any",
+                 "any": "any item (an exact item in the list still wins)",
+                 "help": "The item thrown. Several: any of them."}},
+    15: {"warp_event": {"label": "Warp event number", "pick": "number", "tag": 1, "many": "any",
+                        "help": "The event number the WarpToMap instruction passed. 1000 to 1099: "
+                                "the scene is in the town event's bank; 100 to 999: in the story "
+                                "bank; any other number: in the arrival map's own bank."}},
+    17: {"pair": {"label": "Monster defeated", "pick": "monster", "tag": 1, "many": "pairs",
+                  "any": "any monster",
+                  "help": "Plays after the player defeats this monster, while its condition holds. "
+                          "Add one row per monster."}},
+    22: {"timeslot": {"label": "Time of day", "pick": "choice", "tag": 1, "many": "any",
+                      "any": "any time",
+                      "options": [(0, "morning (6 to 9)"), (1, "daytime (10 to 17)"),
+                                  (2, "evening and night")],
+                      "help": "The first greeting of the day, by the hour."}},
+    23: {"festival": _FESTIVAL}, 24: {"festival": _FESTIVAL}, 25: {"festival": _FESTIVAL},
+    26: {"festival": _FESTIVAL},
+    27: {"priority": {"label": "Reaction kind", "pick": "number", "tag": 1, "any": "any kind",
+                      "help": "Which reaction the game asks for (0 to 3): 2 = an item was handed "
+                              "over, 3 = after the request or event is finished. In the global "
+                              "bank 0 = request completed, 1 = event cleared."},
+         "npc": {"label": "Character", "pick": "npc", "tag": 3, "many": "any",
+                 "help": "Whose reaction it is; 0 = the player's spouse. Several: any of them."}},
+    28: {"npc": {"label": "Character", "pick": "npc", "tag": 3, "any": "anyone",
+                 "help": "The character who says the line."}},
+    30: {"chapter_lo": {"label": "Story progress from", "pick": "number", "tag": 1,
+                        "help": "The lowest main-story progress value (REG_MAIN_SCENARIO) the line is for."},
+         "chapter_hi": {"label": "up to", "pick": "number", "tag": 1,
+                        "help": "The highest value; 0 = only 'from'."}},
+    31: {"date": {"label": "Date", "pick": "date", "tag": 1, "many": "any",
+                  "help": "A day of the year, a festival day, or a number of days before a "
+                          "festival. Several: any of them."}},
+    32: {"line": _TALK_COUNT}, 33: {"line": _TALK_COUNT}, 34: {"line": _TALK_COUNT},
+    35: {"line": _TALK_COUNT}, 36: {"line": _TALK_COUNT},
+    37: {"milestone": {"label": "Request progress", "pick": "choice", "tag": 1, "many": "any",
+                       "options": [(1, "progress (the 1st, then every 5th)"), (2, "completed")],
+                       "help": "For kill-count requests: a progress line or the 'all done' line."}},
+    38: {"npc": {"label": "Character who received it", "pick": "npc", "tag": 3, "many": "any",
+                 "any": "anyone", "help": "Who was given the item. Several: any of them."}},
+    39: {"map": dict(_MAP_ENTERED, any="any map")},
+    40: {"map": dict(_MAP_LEFT, any="any map")},
+    43: {"variant": {"label": "Line variant", "pick": "number", "tag": 1, "any": "any",
+                     "help": "0, 1 or 2: the game rotates three lines by the day of the season."}},
+    44: {"condition": {"label": "When", "pick": "condition", "tag": 1, "many": "any",
+                       "any": "otherwise (the fallback line)",
+                       "help": "An em.bin condition; the first trigger whose condition is true "
+                               "plays. Several: any of them."}},
+    45: {"condition": {"label": "When", "pick": "condition", "tag": 1, "many": "any",
+                       "help": "An em.bin condition; the first trigger whose condition is true "
+                               "plays. There is no fallback here: -1 never plays."}},
+    50: {"condition": {"label": "Only when", "pick": "condition", "tag": 1, "any": "always",
+                       "help": "An em.bin condition that must be true."},
+         "consume": {"label": "Items used up", "pick": "number", "tag": 1,
+                     "any": "the value of EMFE_EV_KOHAKU_LIVE",
+                     "help": "How many of the thrown stack are used up (when the game uses any up)."},
+         "item": {"label": "Item thrown", "pick": "item", "tag": 1, "many": "any",
+                  "help": "The item thrown at them. Several: any of them."}},
+    51: {"is_spouse": {"label": "Married to them?", "pick": "choice", "tag": 1, "any": "either",
+                       "options": [(0, "no"), (1, "yes")],
+                       "help": "The line for the spouse or for everyone else."}},
+    52: {"code": {"label": "Event code", "pick": "number", "tag": 1, "any": "any",
+                  "help": "The code the game queued with the event."}},
+    53: {"code": {"label": "Skill unlock", "pick": "number", "tag": 1, "any": "any",
+                  "help": "4 x weapon skill (0 to 5) + 1, 2 or 4 for skill level 5, 10 or 20."}},
+    56: {"ctx329": {"label": "Prologue step", "pick": "number", "tag": 1, "any": "any",
+                    "help": "An internal prologue counter (0 in every shipped trigger)."}},
+    57: {"ctx329": {"label": "Prologue step", "pick": "number", "tag": 1, "any": "any",
+                    "help": "An internal prologue counter (0 in every shipped trigger)."}},
+    58: {"ctx329": {"label": "Prologue step", "pick": "number", "tag": 1, "any": "any",
+                    "help": "An internal prologue counter."}},
+    60: {"topic": {"label": "Gossip topic", "pick": "number", "tag": 1, "any": "any",
+                   "help": "The topic of the day, 1 to 10 (the game rolls one every morning)."}},
+    61: {"value": {"label": "Friendship value", "pick": "number", "tag": 1, "any": "any",
+                   "help": "A per-character value the game sets (not 0)."}},
+    63: {"step": {"label": "Event step", "pick": "number", "tag": 1, "any": "any step", "help": _STEP_HELP},
+         "map": dict(_MAP_ON, help="The map the player arrives on."),
+         "npc": dict(_NPC_REQ, any="the spouse")},
+    64: {"step": {"label": "Event step", "pick": "number", "tag": 1, "any": "any step", "help": _STEP_HELP},
+         "map": dict(_MAP_ON, help="The map the player arrives on."),
+         "npc": dict(_NPC_REQ, any="the spouse")},
+    65: {"map": _MAP_ON, "step": {"label": "Event step", "pick": "number", "tag": 1,
+                                  "any": "any step", "help": _STEP_HELP},
+         "npc": _NPC_REQ},
+    66: {"map": _MAP_ON, "step": {"label": "Event step", "pick": "number", "tag": 1,
+                                  "any": "any step", "help": _STEP_HELP},
+         "npc": _NPC_REQ},
+    67: {"map": _MAP_ON, "step": {"label": "Event step", "pick": "number", "tag": 1,
+                                  "help": _STEP_HELP},
+         "condition": _COND_ZERO, "npc": _NPC_REQ},
+    68: {"map": dict(_MAP_ON, help="The map whose monsters must all be defeated; 0 = any map."),
+         "flag": {"label": "Game flag", "pick": "flag", "tag": 2,
+                  "help": "The flag or value (FLG_ / REG_) to test."},
+         "value": {"label": "equals", "pick": "number", "tag": 1,
+                   "help": "The value the flag must have."}},
+    69: {"map": dict(_MAP_ENTERED, any="any map"), "chapter": dict(_CHAPTER, any="any")},
+    70: {"map": dict(_MAP_LEFT, any="any map"), "chapter": dict(_CHAPTER, any="any")},
+    71: {"map": _MAP_ON, "chapter": dict(_CHAPTER, any="any",
+                                         help="The main story's progress value (REG_MAIN_SCENARIO): "
+                                              "lined up from this value on, plays at exactly it."),
+         "condition": _COND_ZERO},
+    72: {"npc": {"label": "Character", "pick": "npc", "tag": 1, "any": "anyone",
+                 "help": "The character who says the line."},
+         "chapter": dict(_CHAPTER, any="any")},
+}
+
+# the noun "+ Add another ..." uses for a list key (default: the label in lower case)
+_NOUNS = {"map": "map", "key": "key", "item": "item", "warp_event": "number", "pair": "monster",
+          "timeslot": "time of day", "festival": "festival", "npc": "character", "date": "date",
+          "line": "count", "milestone": "kind", "condition": "condition"}
+
+for _t, _info in ENTRY_TYPES.items():
+    for _ks in _info["keys"]:
+        if not isinstance(_ks["index"], int):
+            _ks.setdefault("noun", _NOUNS.get(_ks["name"], _ks["name"]))
+        _ui = (KEY_UI.get(_t) or {}).get(_ks["name"])
+        if _ks["name"] in ("x1", "y1", "x2", "y2"):
+            _ui = _BOX_UI
+        if _ui is None:          # every catalogued key has wording: a new one must be added above
+            raise AssertionError("entry_types: no editor wording for type %d key %r" % (_t, _ks["name"]))
+        for _f, _v in _ui.items():
+            _ks.setdefault(_f, _v)
+        # what -1 means: a wildcard's "any ...", or a key's own special value (consume -1 = 9)
+        _ks.setdefault("any", "any" if _ks.get("wildcard") else "")
+        _ks.setdefault("many", "any" if isinstance(_ks["index"], str) else None)
+del _t, _info, _ks, _ui
+
+
+def key_form(type_id):
+    """The fields the editor shows for a trigger of `type_id`: [key spec] in key order, the
+    "n+" spec last (it repeats), or None when the type has no catalogued keys."""
+    spec = ENTRY_TYPES.get(type_id)
+    if not spec or not spec["keys"] and spec.get("confidence") == "unknown":
+        return None
+    return list(spec["keys"])
+
+
+def value_text(type_id, k, tag, value, names=None):
+    """A key's value in words ("Selphia Plaza (17)", "Spring 15", "any map"). `names` =
+    {"map": fn, "npc": fn, "item": fn, "condition": fn, "flag": fn} -> name or None; missing
+    ones fall back to the number."""
+    names = names or {}
+    ks = key_spec(type_id, k) or {}
+    pick = ks.get("pick") or "number"
+    if type_id == 17:
+        pick = "monster" if k % 2 == 0 else "condition"
+        if value == -1:
+            return "any monster" if pick == "monster" else "always"
+    elif value == -1 and ks.get("any"):
+        return ks["any"]
+
+    def named(kind):
+        fn = names.get(kind)
+        nm = fn(value) if fn else None
+        return "%s (%d)" % (nm, value) if nm else str(value)
+    if tag == 0x02 or (pick == "npc" and value in (SPOUSE_FLAG, CHILD_FLAG)):
+        if value == SPOUSE_FLAG:
+            return "the spouse"
+        if value == CHILD_FLAG:
+            return "the child"
+        fn = names.get("flag")
+        nm = fn(value) if fn else None
+        return nm or _fmt_flagref(value)
+    if pick in ("map", "npc", "item", "condition"):
+        if pick == "map" and value == 0 and type_id == 68:
+            return "any map"
+        if pick == "condition" and value == 0 and not ks.get("any"):
+            return "none"
+        if pick == "npc" and value == 0 and type_id == 27:
+            return "the spouse"
+        return named(pick)
+    if pick == "monster":
+        return named("npc")
+    if pick == "festival":
+        nm = FESTIVAL_NAMES.get(value)
+        return "%s (%d)" % (nm, value) if nm else str(value)
+    if pick == "choice":
+        return dict(ks.get("options") or ()).get(value, str(value))
+    if pick == "date":
+        return date_text(value)
+    return str(value)
+
+
+def date_text(value):
+    """A DateTalk key in words: day + 30 * season up to 120, else (n << 8) | festival =
+    n - 1 days before that festival."""
+    if value < 0:
+        return "never (dates are compared unsigned)"
+    if value <= 120:
+        s, d = divmod(value, 30)
+        return "%s %d" % (SEASONS[s], d + 1) if s < 4 else "day %d" % value
+    n, fes = value >> 8, value & 0xFF
+    name = FESTIVAL_NAMES.get(fes, "festival %d" % fes)
+    if n <= 1:
+        return "%s (the day)" % name
+    return "%d day%s before %s" % (n - 1, "" if n == 2 else "s", name)
+
+
+def date_value(season, day=None, festival=None, days_before=0):
+    """Inverse of date_text: (season 0..3, day 1..30) or (festival, days before it)."""
+    if festival is not None:
+        return ((int(days_before) + 1) << 8) | int(festival)
+    return int(season) * 30 + int(day) - 1
+
+
+def explain_keys(type_id, subs, names=None):
+    """The keys of one trigger in the editor's words: "Map the player is on: Castle (64)";
+    list keys are joined with "or" ("and" for the required characters)."""
+    form = key_form(type_id)
+    if not subs:
+        return "always (no keys)" if form is not None and not form else "(no keys)"
+    if form is None:
+        return ", ".join("key %d = %d" % (k, v) for k, (_t, v) in enumerate(subs))
+    parts, last_label, joined = [], None, []
+
+    def flush():
+        if joined:
+            ks = key_spec(type_id, joined[0][0]) or {}
+            word = " and " if ks.get("many") == "all" else " or "
+            parts.append("%s: %s" % (last_label, word.join(t for _k, t in joined)))
+            joined.clear()
+    box = {}
+    for k, (tag, v) in enumerate(subs):
+        ks = key_spec(type_id, k) or {}
+        if ks.get("pick") == "box":
+            box[ks["name"]] = v
+            if len(box) == 4:
+                flush()
+                x1, x2 = sorted((box["x1"], box["x2"]))
+                y1, y2 = sorted((box["y1"], box["y2"]))
+                parts.append("Area: x %d, y %d, %d x %d" % (x1, y1, x2 - x1, y2 - y1))
+                last_label = None
+            continue
+        if type_id == 17:
+            label = "Monster defeated" if k % 2 == 0 else "only when"
+            flush()
+            parts.append("%s: %s" % (label, value_text(type_id, k, tag, v, names)))
+            continue
+        label = ks.get("label") or ks.get("name") or "key %d" % k
+        if label != last_label:
+            flush()
+        last_label = label
+        joined.append((k, value_text(type_id, k, tag, v, names)))
+    flush()
+    return "; ".join(parts)
 
 
 def recipe(type_id):

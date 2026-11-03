@@ -2060,6 +2060,100 @@ def test_search_items():
     _check("NLCL footer xref-table valid", nl_ok == nl_total, f"{nl_ok}/{nl_total} NLCL files")
 
 
+def test_trigger_key_form():
+    """The trigger keys as a form (cutscene_editor.keyform): every catalogued key has editor
+    wording, every shipped trigger reads back byte-exact (tags too), list keys add / remove,
+    the spouse is a tag-2 flag reference, and the Triggers list says the keys in words."""
+    print("trigger key form:")
+    import tkinter as tk
+    from rf4s_modkit import entry_types, emscript
+    from rf4s_modkit.emflags import EmFlagTable
+    from cutscene_editor import keyform
+    c = _shipped_container()
+    if c is None:
+        _skip("trigger key form", "no rf3.mc"); return
+    worded = all(ks.get("label") and ks.get("help") and ks.get("pick")
+                 for t in entry_types.ENTRY_TYPES.values() for ks in t["keys"])
+    _check("every catalogued trigger key has a label, a help line and a picker kind", worded)
+
+    class _Doc:
+        container = c
+        emf_vars = EmFlagTable.load()
+        try:
+            em = emscript.EmScript.load()
+        except Exception:  # noqa: BLE001 -- no em.bin: conditions are typed as numbers
+            em = None
+
+    class _App:
+        doc = _Doc()
+    app = _App()
+    root = tk.Tk(); root.withdraw()
+    try:
+        shapes, new_types, bad, n = set(), set(), [], 0
+        for b in c.banks:
+            try:
+                tt = b.type_table_full()
+            except Exception:  # noqa: BLE001
+                continue
+            for t in tt:
+                try:
+                    recs = b.entry_records(t)
+                except Exception:  # noqa: BLE001
+                    continue
+                for r in recs:
+                    shape = (t, len(r.subs))
+                    if QUICK and shape in shapes:       # --quick: one trigger per shape
+                        continue
+                    shapes.add(shape)
+                    n += 1
+                    f = keyform.KeyForm(root, app, b, t, r.subs)
+                    if f.values() != [tuple(s) for s in r.subs]:
+                        bad.append((t, b.index, r.subs))
+                    f.destroy()
+                    if t not in new_types:
+                        new_types.add(t)
+                        g = keyform.KeyForm(root, app, b, t, None)
+                        try:
+                            g.values()
+                        except ValueError as e:
+                            bad.append((t, "new trigger", str(e)))
+                        g.destroy()
+        _check("Triggers form: every shipped trigger reads back exactly (keys and tags) and a new "
+               "trigger of every type reads (%d triggers, %d types)" % (n, len(new_types)), not bad, bad[:5])
+        # MapTalk: Add another map, then remove it; the spouse in a town-event scene is a flag ref
+        b0 = next(b for b in c.banks if 0 in (b.type_table_full() or {}) and b.entry_records(0))
+        f = keyform.KeyForm(root, app, b0, 0, b0.entry_records(0)[0].subs)
+        n0 = len(f.values())
+        f.add_button.invoke()
+        grown = f.values()
+        rm = [w for w in f.fields[-1].widget.master.winfo_children()
+              if w.winfo_class() == "TButton" and w.cget("text") == "✕"]
+        if rm:
+            rm[0].invoke()
+        back = f.values()
+        f.destroy()
+        b65 = next(b for b in c.banks if 65 in (b.type_table_full() or {}) and b.entry_records(65))
+        g = keyform.KeyForm(root, app, b65, 65, None)
+        npc = next(x for x in g.fields if x.spec.get("pick") == "npc")
+        npc.var.set("the spouse")
+        spouse = g.values()[-1]
+        g.destroy()
+        _check("Triggers form: '+ Add another map' adds a map row (✕ takes it out again); 'the spouse' "
+               "in a town-event scene writes the packed REG_WIFE_ID reference (tag 2)",
+               len(grown) == n0 + 1 and grown[-1][0] == 4 and len(back) == n0
+               and spouse == (2, entry_types.SPOUSE_FLAG), (n0, grown, back, spouse))
+        b308 = c.banks[308] if len(c.banks) > 308 else None
+        if b308 is not None and b308.entry_records(3):
+            txt = keyform.describe(app, 3, b308.entry_records(3)[0].subs)
+            _check("the Triggers list says a trigger's keys in words (Area + the condition's name)",
+                   txt.startswith("Area: x 306, y 440, 94 x 80; Only when: EV_"), txt)
+        _check("DateTalk dates read as days and festivals",
+               (entry_types.date_text(14), entry_types.date_text(257), entry_types.date_text(513))
+               == ("Spring 15", "Bean Toss Contest (the day)", "1 day before Bean Toss Contest"))
+    finally:
+        root.destroy()
+
+
 def test_entry_key_warnings():
     """Keys that can never match are refused when a trigger is added or re-keyed, odd ones
     warned: type 2 compares a spawned event actor's unsigned 16-bit key exactly (no -1
@@ -5782,21 +5876,23 @@ def test_open_map_and_regions():
             btn.invoke()
             mid, _cur, lock, done = calls[-1]
             done(8, 16, 40, 48, None)
-            ent = next(x for x in _all_widgets(dlg) if x.winfo_class() == "TEntry")
-            got["keys"] = ent.get()
+            form = dlg.keyform
+            got["keys"] = form.values()
+            got["labels"] = [f.label for f in form.fields]
+            got["any"] = form.fields[0].any.get()
             got["mid"], got["lock"] = mid, bool(lock)
-            for t in _all_toplevels(root):
-                if t is not dlg and t.winfo_exists() and t.master is dlg:
-                    t.destroy()                       # the picker closes: the dialog grabs again
+            form.picker.win.destroy()                 # the picker closes: the dialog grabs again
             root.update()
             got["grab"] = str(dlg.grab_current() or "") == str(dlg)
             dlg.destroy()
         root.after(300, drive)
         ce_dialogs.ask_new_scene(ex.frame, ex, ex.doc.container.banks[407], default_type=3)
-        _check("New scene, PlayerRegionTrigger: '📍 Draw the box…' opens the picker on the bank's "
-               "map (fixed) and the box lands in the keys",
+        _check("New scene, PlayerRegionTrigger: the keys are a form (Area + 'Only when', ticked "
+               "'always'); '📍 Draw the area…' opens the picker on the bank's map (fixed) and the "
+               "box lands in the Area",
                got.get("shown") and got.get("mid") == 159 and got.get("lock")
-               and got.get("keys", "").startswith("8, 16, 40, 48"), got)
+               and got.get("labels") == ["Only when"] and got.get("any")
+               and got.get("keys") == [(1, 8), (1, 16), (1, 40), (1, 48), (1, -1)], got)
         _check("the dialog takes input again once the picker closes", got.get("grab"), got)
         # Edit a menu that writes reg0 (bank 1 @5006): moving an option warns that the
         # SetChoiceVisibleBit lines and the SWITCH after it keep the old order
@@ -17057,13 +17153,14 @@ def test_cutscene_toolbox():
             d = cx.trigger_detail
             swapped = (cx.right_pane == "trigger" and d.winfo_manager() == "pack"
                        and cx.inspector.winfo_manager() == "")
-            box0 = [v.get() for v in d.fields[0][2]]
-            d.fields[0][2][2].set("120"); root.update()
+            box0 = [v.get() for v in d.form.box]
+            cond0 = d.form.fields[0].var.get()
+            d.form.box[2].set("120"); root.update()
             applied = d.apply(); root.update()
             subs = [v for _t, v in cx.doc.container.banks[308].entry_records(3)[0].subs]
             _check("Triggers pane: a region box shows as x / y / width / height, the condition by name, "
                    "and Apply writes the corners",
-                   box0 == ["306", "440", "94", "80"] and "121" in d.fields[1][2].get()
+                   box0 == ["306", "440", "94", "80"] and "121" in cond0 and "EV_" in cond0
                    and applied and subs == [306, 440, 426, 520, 121] and tt.selected()[0] == 3,
                    "%s -> %s" % (box0, subs))
             cx.undo(); root.update()
@@ -17071,7 +17168,7 @@ def test_cutscene_toolbox():
             root.update()
             bp.box = (100, 200, 180, 260); bp._use(); root.update()
             _check("Triggers pane: 'Draw the box on the map' opens the bank's map with the box and fills the fields",
-                   bp.map_id == 60 and bp.locked and [v.get() for v in cx.trigger_detail.fields[0][2]] == ["100", "200", "80", "60"])
+                   bp.map_id == 60 and bp.locked and [v.get() for v in cx.trigger_detail.form.box] == ["100", "200", "80", "60"])
             cx.nb.select(cx.view); root.update()
             back = cx.right_pane == "inspector" and cx.inspector.winfo_manager() == "pack" \
                 and cx.trigger_detail.winfo_manager() == ""
@@ -19437,7 +19534,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_debugger_watch, test_copy_scene_between_banks, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
-              test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_trigger_key_form, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

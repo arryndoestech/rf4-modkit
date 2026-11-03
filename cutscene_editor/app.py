@@ -2091,17 +2091,6 @@ class CutsceneExplorer:
         return self.show_callers(target)
 
     # ---- triggers (the type table) --------------------------------------------------- #
-    def default_keys_text(self, bank, type_id):
-        names = catalog.type_key_names(type_id)
-        n = len(names) if names is not None else None
-        if n is None:
-            try:
-                recs = bank.entry_records(type_id)
-            except Exception:
-                recs = []
-            n = len(recs[0].subs) if recs else None
-        return ", ".join(["-1"] * n) if n else ""
-
     def new_scene_template(self):
         """A new scene starts empty. The FRAME its code needs is added / raised by itself on
         every edit (bankrelink.BankModel.ensure_frames), so nobody has to write one."""

@@ -2,6 +2,7 @@
 callers window. Every prompt validates before it closes and shows errors inline."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -801,6 +802,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
     def choice(t):
         lab = catalog.type_label(t)
         nm = lab.split("  ", 1)[1] if "  " in lab else ""
+        nm = re.sub(r"(?<=[a-z])(?=[A-Z0-9])", " ", nm)          # MapEnterScene -> Map Enter Scene
         cnt = tt[t][0] if t in tt else 0
         return "%-3d %s%s" % (t, nm, ("   (%d already)" % cnt) if cnt else "")
     ttk.Label(frm, text="Plays when").grid(row=0, column=0, sticky="e", padx=2, pady=2)
@@ -812,74 +814,22 @@ def ask_new_scene(parent, app, bank, default_type=None):
                  "entering the map, using an item, a festival phase, …")
     summary = ttk.Label(frm, text="", foreground="#556", font=("Segoe UI", 8), wraplength=560, justify="left")
     summary.grid(row=1, column=1, sticky="w", padx=2)
-    ttk.Label(frm, text="Keys").grid(row=2, column=0, sticky="e", padx=2, pady=2)
-    kv = tk.StringVar()
-    keys = ttk.Entry(frm, textvariable=kv, width=56)
-    keys.grid(row=2, column=1, sticky="we", padx=2, pady=2)
-    Tip(keys, "What the trigger matches, comma-separated: `5, -1` (-1 = any) or `(tag, value)`.")
-    khint = ttk.Label(frm, text="", foreground="#556", font=("Segoe UI", 8), wraplength=560, justify="left")
-    khint.grid(row=3, column=1, sticky="w", padx=2)
-    boxbtn = ttk.Button(frm, text="📍 Draw the box…", command=lambda: draw_box())
-    Tip(boxbtn, "Drag the trigger area on the map: fills the x1, y1, x2, y2 keys (1/8-tile units). "
-                "The map's other trigger boxes show dashed.")
-    picker = {}
+    ttk.Label(frm, text="Keys").grid(row=2, column=0, sticky="ne", padx=2, pady=2)
+    kbox = ttk.LabelFrame(frm, text="Plays when", padding=6)
+    kbox.grid(row=2, column=1, sticky="we", padx=2, pady=2)
+    keys = {"form": None}
 
-    def key_names(t):
-        return [k.get("name") if isinstance(k, dict) else str(k) for k in (catalog.type_key_names(t) or [])]
+    def build_form(t):
+        from .keyform import KeyForm
+        if keys["form"] is not None:
+            keys["form"].destroy()
+        keys["form"] = KeyForm(kbox, app, bank, t, None, on_change=lambda enter=False: refresh_note(),
+                               wrap=560)
+        keys["form"].pack(fill="x")
+        win.keyform = keys["form"]                      # (selftest)
 
-    def draw_box():
-        """Open the box picker on the trigger's map (this bank's, or its map key) and write
-        the box back into the keys."""
-        from . import toolbox
-        t = cur_type()
-        names = key_names(t) if t is not None else []
-        if not all(n in names for n in ("x1", "y1", "x2", "y2")):
-            return None
-        try:
-            vals = [k[1] if isinstance(k, tuple) else k for k in catalog.parse_entry_keys(kv.get())]
-        except ValueError:
-            vals = []
-        vals += [-1] * (len(names) - len(vals))
-        bi = [names.index(n) for n in ("x1", "y1", "x2", "y2")]
-        cur = tuple(vals[i] for i in bi)
-        cur = cur if all(v != -1 for v in cur) and any(cur) else None
-        mid, lock, note = None, None, None
-        if "map" in names and vals[names.index("map")] not in (-1, None):
-            mid, lock = vals[names.index("map")], "the trigger's map key says which map the box is on"
-        elif "map" in names:
-            note = "choose the map the trigger is for (it goes into the map key)"
-        elif bank.kind == "tail":
-            mid, lock = bank.index, "the trigger is in this map's event bank"
-        else:
-            note = "this bank is not tied to one map: choose the map the box is on"
-
-        def done(x1, y1, x2, y2, _mid):
-            new = list(vals)
-            for i, v in zip(bi, (x1, y1, x2, y2)):
-                new[i] = v
-            if "map" in names and lock is None and _mid is not None:
-                new[names.index("map")] = _mid
-            kv.set(", ".join(str(v) for v in new))
-        try:
-            win.grab_release()                   # the picker window takes the clicks meanwhile
-        except tk.TclError:
-            pass
-        pk = picker["p"] = toolbox.MapBoxPicker(win, mid, cur, done, lock=lock, note=note)
-
-        def back(_e=None):
-            if _e is not None and _e.widget is not pk.win:
-                return
-            try:
-                if win.winfo_exists():
-                    win.grab_set()
-            except tk.TclError:
-                pass
-        pk.win.bind("<Destroy>", back, add="+")
-        try:
-            pk.win.grab_set()
-        except tk.TclError:
-            pass
-        return pk
+    def form_keys():
+        return keys["form"].values() if keys["form"] is not None else []
     ttk.Label(frm, text="Position").grid(row=4, column=0, sticky="e", padx=2, pady=2)
     pv = tk.StringVar(value="append")
     pos = ttk.Combobox(frm, textvariable=pv, values=["append", "first"], state="readonly", width=10)
@@ -910,14 +860,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
         if t is None:
             return
         summary.config(text=catalog.type_summary(t) + ("\n" + catalog.type_recipe(t) if catalog.type_recipe(t) else ""))
-        kv.set(app.default_keys_text(bank, t))
-        names = catalog.type_key_names(t)
-        khint.config(text=("keys: " + ", ".join(str(k.get("name") if isinstance(k, dict) else k) for k in names))
-                     if names else "key count mirrors this bank's existing triggers of the type")
-        if all(n in key_names(t) for n in ("x1", "y1", "x2", "y2")):
-            boxbtn.grid(row=2, column=2, sticky="w", padx=(4, 0))
-        else:
-            boxbtn.grid_remove()
+        build_form(t)
         refresh_note()
 
     def refresh_note(*_a):
@@ -929,17 +872,16 @@ def ask_new_scene(parent, app, bank, default_type=None):
         parts = [app.shadow_note(bank, t, at)]
         clash = None
         try:
-            subs = catalog.parse_entry_keys(kv.get())
+            subs = form_keys()
             parts += catalog.key_problems(t, subs, app.doc.em)
             clash, warns, _elsewhere = app.doc.container.entry_key_conflicts(bank, t, subs, at)
             parts += warns
-        except ValueError:
-            pass
+        except ValueError as ex:
+            clash = str(ex)
         note.config(text="\n".join(p for p in parts if p))
         err.config(text=clash or "")
     type_cb._on_pick = lambda _t: on_type()
-    pos.bind("<<ComboboxSelected>>", on_type)
-    kv.trace_add("write", refresh_note)
+    pos.bind("<<ComboboxSelected>>", lambda _e: refresh_note())
 
     def ok(_e=None):
         t = cur_type()
@@ -947,7 +889,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
             err.config(text="pick when it plays (a trigger type)")
             return "break"
         try:
-            k = catalog.parse_entry_keys(kv.get())
+            k = form_keys()
         except ValueError as ex:
             err.config(text=str(ex))
             return "break"

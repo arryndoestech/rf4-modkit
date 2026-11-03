@@ -613,11 +613,17 @@ keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `E
 `PROMPT_CHOICE #123 -> L3, #124 -> L4`, `JMP L1`); *Check* reports the failing line inline and *Apply to
 scene* re-assembles it in place: the new body takes the old body's place and statements only
 the old body used are dropped. The
-**Triggers** tab lists the bank's triggers by trigger type (each with its decoded keys) and mints
+**Triggers** tab lists the bank's triggers by trigger type, each with when it plays in words
+("Map the player is on: Castle: Dragon Room (64)", "Date: 1 day before Bean Toss Contest") and mints
 **new scenes**: pick when it plays (a trigger type; the catalogue supplies a recipe per type: which bank,
-which keys, the ordering caveat), its keys and a body (for a trigger with a box -- a player region,
-a sub-event or story region scene -- *📍 Draw the box…* drags it on the map, the map's other boxes
-dashed); a note warns when a new trigger would
+which keys, the ordering caveat), its keys and a body. The keys are a form, the same in the New scene
+dialog and in the pane beside the list: one labelled field per key with a line of help and a picker
+that fits it (a map, a character, an item, an em.bin condition, a festival, a flag, a date), an *any*
+box where the key can match anything, the area of a region trigger as x / y / width / height
+(*📍 Draw the area on the map…* drags it on the map, the map's other areas dashed), and
+*+ Add another …* / ✕ for the keys a trigger can list several of (several maps, items or festivals:
+any of them matches; the required characters of a town-event scene: all of them). Each key keeps
+the tag the game writes it with (a map, a character, the spouse / child as a flag reference); a note warns when a new trigger would
 **shadow** the bank's existing scene of that type. *Remove* unregisters the selected trigger;
 its keys are edited in the pane beside the list (*Apply*). Keys are checked as you type: a trigger that could never run is refused (exactly
 the keys of a trigger checked before it; a type-2 event key outside 1..65535 or -1 -- spawned

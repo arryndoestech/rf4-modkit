@@ -5,11 +5,11 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from guiutil import FilterCombo, Paned, ScrollFrame, Tip
+from guiutil import Paned, ScrollFrame, Tip
 from guiutil import err_text
 from rf4s_modkit import script, scriptasm, subevents
 
-from . import catalog
+from . import catalog, keyform
 from .render import SceneText
 
 DARK = dict(bg="#15151b", fg="#dcdce4", insertbackground="#dcdce4")
@@ -502,7 +502,7 @@ class TriggersTab(ttk.Frame):
         self.tree = ttk.Treeview(f, columns=("pc", "keys"), yscrollcommand=sb.set, selectmode="browse")
         self.tree.heading("#0", text="when it plays (trigger type) / trigger")
         self.tree.heading("pc", text="scene")
-        self.tree.heading("keys", text="matches (keys; -1 = any where the type allows it)")
+        self.tree.heading("keys", text="plays when")
         self.tree.column("#0", width=280, stretch=False)
         self.tree.column("pc", width=90, stretch=False)
         self.tree.column("keys", width=420)
@@ -550,7 +550,7 @@ class TriggersTab(ttk.Frame):
             self.rows[node] = (typ, None)
             for r in recs:
                 dead = "" if script.decode_statement(bank.data, r.event_id) else "  [no code]"
-                keys = catalog.describe_keys(typ, r.subs)
+                keys = keyform.describe(app, typ, r.subs)
                 if (typ, r.index) in starts:
                     keys = "▶ starts the town event · " + keys
                 iid = t.insert(node, "end", text="  #%d" % r.index, values=("@%04x%s" % (r.event_id, dead), keys))
@@ -598,12 +598,9 @@ class TriggersTab(ttk.Frame):
 
 class TriggerDetail(ttk.Frame):
     """The editor's right-hand pane while the Triggers tab is open (it takes the Inspector's
-    place): what the selected entry's type does, and one
-    named field per key (entry_types' key specs). A trigger box (x1 y1 x2 y2) shows as x, y,
-    width, height with 'Draw on map'; a condition picks an em.bin entry; a map key picks a
-    map. Apply (or Enter) writes the keys back, keeping each key's tag."""
-
-    BOX = ("x1", "y1", "x2", "y2")
+    place): what the selected entry's type does, and its keys as a form (keyform.KeyForm:
+    one labelled field per key with a picker, the area as x / y / width / height with Draw
+    on the map, Add / Remove for list keys). Apply (or Enter) writes the keys back."""
 
     def __init__(self, parent, app, tab):
         super().__init__(parent)
@@ -612,14 +609,14 @@ class TriggerDetail(ttk.Frame):
         self.sf.pack(fill="both", expand=True)
         self.body = self.sf.body
         self.typ = self.rec = None
-        self.fields = []                    # [(kind, key index | box, StringVar, token map)]
+        self.form = None
         self.show(None, None)
 
     # ---- layout ------------------------------------------------------------------ #
     def _clear(self):
         for w in self.body.winfo_children():
             w.destroy()
-        self.fields = []
+        self.form = None
 
     def _label(self, text, **kw):
         kw.setdefault("wraplength", 330)
@@ -629,6 +626,7 @@ class TriggerDetail(ttk.Frame):
         return lb
 
     def show(self, typ, rec):
+        from .keyform import KeyForm
         self._clear()
         self.typ, self.rec = typ, rec
         if typ is None:
@@ -648,10 +646,12 @@ class TriggerDetail(ttk.Frame):
         head.pack(fill="x", padx=8, pady=(6, 2))
         ttk.Label(head, text="trigger #%d → scene @%04x" % (rec.index, rec.event_id)).pack(side="left")
         ttk.Button(head, text="Open scene", command=self.tab.open_selected).pack(side="right")
-        box = ttk.LabelFrame(self.body, text="Keys (what this trigger matches)", padding=6)
+        box = ttk.LabelFrame(self.body, text="Plays when", padding=6)
         box.pack(fill="x", padx=6, pady=6)
-        box.columnconfigure(1, weight=1)
-        self._build_fields(box, typ, rec)
+        bank = self.app.doc.container.banks[self.tab.bank_pos]
+        self.form = KeyForm(box, self.app, bank, typ, rec.subs,
+                            on_change=lambda enter=False: self.apply() if enter else self._check())
+        self.form.pack(fill="x")
         self.warn = ttk.Label(self.body, foreground="#b06000", wraplength=330, justify="left")
         self.warn.pack(anchor="w", padx=8)
         bb = ttk.Frame(self.body)
@@ -662,116 +662,13 @@ class TriggerDetail(ttk.Frame):
         ttk.Button(bb, text="Revert", command=lambda: self.show(self.typ, self.rec)).pack(side="left", padx=4)
         self._check()
 
-    def _spec(self, typ, k):
-        try:
-            from rf4s_modkit import entry_types
-            return entry_types.key_spec(typ, k) or {}
-        except Exception:
-            return {}
-
-    def _row(self, box, r, label, var, hint, options=None, width=12):
-        ttk.Label(box, text=label).grid(row=r, column=0, sticky="nw", padx=(0, 6), pady=2)
-        if options:
-            w = FilterCombo(box, [d for d, _t in options], on_pick=lambda _t: self._check(), width=30,
-                            textvariable=var)
-        else:
-            w = ttk.Entry(box, textvariable=var, width=width)
-        w.grid(row=r, column=1, sticky="w", pady=2)
-        w.bind("<Return>", lambda _e: self.apply())
-        var.trace_add("write", lambda *_a: self._check())
-        if hint:
-            ttk.Label(box, text=hint, foreground="#777", font=("Segoe UI", 8), wraplength=320,
-                      justify="left").grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(0, 3))
-        return w
-
-    def _build_fields(self, box, typ, rec):
-        subs = list(rec.subs)
-        vals = [v for _t, v in subs]
-        names = [(self._spec(typ, k).get("name") or "key %d" % k) for k in range(len(subs))]
-        row = 0
-        bi = [names.index(n) for n in self.BOX] if all(n in names for n in self.BOX) else None
-        if bi:
-            x1, y1, x2, y2 = (vals[i] for i in bi)
-            x1, x2 = min(x1, x2), max(x1, x2)
-            y1, y2 = min(y1, y2), max(y1, y2)
-            vars_ = [tk.StringVar(value=str(v)) for v in (x1, y1, x2 - x1, y2 - y1)]
-            for lab, var, hint in zip(("x", "y", "width", "height"), vars_, (
-                    "box left edge (1/8-tile units, like positions)", "box top edge", "", "")):
-                self._row(box, row, lab, var, hint)
-                row += 2
-            self.fields.append(("box", tuple(bi), vars_, None))
-            b = ttk.Button(box, text="📍 Draw the box on the map…", command=self.draw_box)
-            b.grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 6))
-            Tip(b, "Drag the trigger area on the map (1/8-tile units; the map is this bank's map, "
-                   "or the trigger's map key).")
-            row += 1
-        for k, (tag, v) in enumerate(subs):
-            if bi and k in bi:
-                continue
-            spec = self._spec(typ, k)
-            name = names[k]
-            from . import argspec as _argspec
-            hint = _argspec.clean_help(spec.get("meaning") or "")
-            if len(hint) > 220:
-                hint = hint[:219].rstrip() + "…"
-            if spec.get("wildcard"):
-                hint = "-1 = any. " + hint
-            opts = self._key_options(name)
-            var = tk.StringVar()
-            tokmap = dict(opts) if opts else None
-            disp = next((d for d, t in opts if t == str(v)), str(v)) if opts else str(v)
-            var.set(disp)
-            self._row(box, row, name, var, hint, opts)
-            self.fields.append(("key", k, var, tokmap))
-            row += 2
-
-    def _key_options(self, name):
-        """[(display, token)] picker values for a key named `name`, or None."""
-        n = name.lower()
-        if n == "condition":
-            em = self.app.doc.em
-            if em is None:
-                return None
-            try:
-                from rf4s_modkit import emtext
-            except ImportError:
-                emtext = None
-            out = [("-1  (none / any)", "-1"), ("0  (none)", "0")]
-            for i in range(len(em.entries)):
-                nm = em.names.entry_name(i) or ""
-                txt = (emtext.entry_text(nm) if emtext else "") or ""
-                out.append(("%d  %s%s" % (i, nm, ("  — " + txt) if txt else ""), str(i)))
-            return out
-        if n == "map":
-            from . import toolbox
-            return [(d, str(script.map_leaf_value(t[4:-1]))) for d, t in toolbox.map_choices()]
-        return None
-
     # ---- values ------------------------------------------------------------------ #
     def values(self):
-        """The entry's keys as the fields say: [(tag, value)] (raises ValueError)."""
-        subs = list(self.rec.subs)
-        out = [v for _t, v in subs]
-        for kind, where, var, tokmap in self.fields:
-            if kind == "box":
-                x, y, w, h = (int(v.get().strip(), 0) for v in var)
-                if w < 0 or h < 0:
-                    raise ValueError("width and height must be 0 or more")
-                for i, val in zip(where, (x, y, x + w, y + h)):
-                    out[i] = val
-            else:
-                t = var.get().strip()
-                t = (tokmap or {}).get(t, t)
-                tok = t.split()[0] if t else ""
-                try:
-                    out[where] = int(tok, 0)
-                except ValueError:
-                    raise ValueError("%s: %r is not a number" % (self._spec(self.typ, where).get("name")
-                                                                   or "key %d" % where, t))
-        return [(tag, v) for (tag, _o), v in zip(subs, out)]
+        """The entry's keys as the form says: [(tag, value)] (raises ValueError)."""
+        return self.form.values()
 
     def _check(self):
-        if self.rec is None or not hasattr(self, "warn"):
+        if self.rec is None or self.form is None or not hasattr(self, "warn"):
             return
         try:
             keys = self.values()
@@ -792,7 +689,7 @@ class TriggerDetail(ttk.Frame):
                          foreground="#b06000")
 
     def apply(self):
-        if self.rec is None:
+        if self.rec is None or self.form is None:
             return False
         try:
             keys = self.values()
@@ -804,38 +701,7 @@ class TriggerDetail(ttk.Frame):
         return self.app.set_entry_keys(self.tab.bank_pos, self.typ, self.rec.index, keys)
 
     def draw_box(self):
-        from . import toolbox
-        box_field = next((f for f in self.fields if f[0] == "box"), None)
-        if box_field is None:
-            return None
-        try:
-            x, y, w, h = (int(v.get().strip(), 0) for v in box_field[2])
-            cur = (x, y, x + w, y + h)
-        except ValueError:
-            cur = None
-        bank = self.app.doc.container.banks[self.tab.bank_pos]
-        mid, lock, note = None, None, None
-        mapf = next((f for f in self.fields if f[0] == "key"
-                     and (self._spec(self.typ, f[1]).get("name") or "") == "map"), None)
-        if mapf is not None:
-            t = mapf[2].get().strip()
-            try:
-                mid = int((mapf[3] or {}).get(t, t).split()[0], 0)
-                lock = "the trigger's map key says which map the box is on"
-            except (ValueError, IndexError):
-                note = "the trigger's map key is not a map: choose one"
-        elif bank.kind == "tail":
-            mid, lock = bank.index, "the trigger is in this map's event bank"
-        else:
-            note = "this bank is not tied to one map: choose the map the trigger is for"
-
-        def done(x1, y1, x2, y2, _mid):
-            for v, val in zip(box_field[2], (x1, y1, x2 - x1, y2 - y1)):
-                v.set(str(val))
-            if mapf is not None and lock is None and _mid is not None:    # the map was chosen here
-                mapf[2].set(next((d for d, t in (mapf[3] or {}).items() if t == str(_mid)), str(_mid)))
-        self._box_picker = toolbox.MapBoxPicker(self, mid, cur, done, lock=lock, note=note)
-        return self._box_picker
+        return self.form.draw_box() if self.form is not None else None
 
 
 # --------------------------------------------------------------------------- #
