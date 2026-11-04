@@ -245,7 +245,8 @@ ATTR_BIT_HELP = {
           "object's collision template contains it.",
     0x20: "Farm soil: tillable, and the gate for tile objects and entity spawns.\n"
           "Tilling also needs the map to have a farm field (it fails on a map\n"
-          "without one, whatever the tile says). Removing 0x20 from a farm tile\n"
+          "without one, whatever the tile says). Only MAP_FARM_00..04 and\n"
+          "MAP_FIELD_A0..A3 have one. Removing 0x20 from a farm tile\n"
           "makes the game drop the\n"
           "crop on it when the farm display is rebuilt.",
     0x40: "Flower ground.\n"

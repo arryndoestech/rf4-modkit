@@ -134,6 +134,9 @@ MAPJ_FLAG_COUNT = 2560
 # Sharance Maze floors: an arrival x/y near an edge is a direction code for the maze walk
 # (Scene_FinalizeMajorTransition RF4S.exe+0x1407E0), not a spot.
 MAZE_MAP_IDS = range(442, 454)
+# the base map ids Map_GetFarmableRegionIndex (RF4S.exe+0x18FE10) maps to farm fields 0..8;
+# every other map returns -1 (no farm tiles, so tillable ATTR does nothing)
+FARM_FIELD_MAP_IDS = frozenset({4, 8, 12, 16, 20, 261, 262, 263, 264})
 # ATTR grids under these tile sizes get the auto-centred, zoomed-in camera
 # (Camera_SetBoundsForMap RF4S.exe+0x141700: under 416 x 256 sub-units), except maps 148 / 348.
 SMALL_MAP_TILES = (52, 32)
@@ -1029,6 +1032,15 @@ class Rf4mMap:
         errs2, warns2 = self._entity_findings(W, H, bool(grid))
         errs += errs2
         warns += warns2
+        # 5b. tillable soil only works on the nine farm-field maps (Map_GetFarmableRegionIndex)
+        if grid and own_id is not None and mapres.base_id(own_id) not in FARM_FIELD_MAP_IDS:
+            n_till = sum(1 for v in grid[2] if v & 0x20)
+            if n_till:
+                farms = ", ".join(f"{mapres.row(m)[0]} ({m})" for m in sorted(FARM_FIELD_MAP_IDS))
+                warns.append(f"{n_till} tile(s) are tillable (ATTR 0x20), but this map has no "
+                             f"farm field: Map_GetFarmableRegionIndex (RF4S.exe+0x18FE10) gives "
+                             f"one only to {farms}, so the hoe does nothing here and no crop "
+                             f"can be planted")
         # 6. warps
         maze = own_id in MAZE_MAP_IDS
         dest_maps = {}

@@ -714,6 +714,15 @@ def test_rf4m():
         _check("rf4m validate: tint slot f8=5 and arrival x=40000 are fatal",
                any(s.startswith("ERROR") and "tint_color" in s for s in vt)
                and any(s.startswith("ERROR") and "16-bit" in s for s in vt))
+        # tillable soil off the nine farm maps: Map_GetFarmableRegionIndex gives no field
+        tl = rf4m.Rf4mMap.parse(raw)
+        tl.set_attr_cell(0, 0, tl.attr_grid()[2][0] | 0x20)
+        _farm_w = lambda name: [s for s in tl.validate(map_name=name) if "no farm field" in s]
+        _check("rf4m validate: tillable ATTR warns off the farm-field maps only "
+               "(MAP_FIELD_04 warns; MAP_FARM_00_SUMMER and MAP_FIELD_A0 do not)",
+               len(_farm_w("MAP_FIELD_04")) == 1 and _farm_w("MAP_FIELD_04")[0].startswith("WARN")
+               and not _farm_w("MAP_FARM_00_SUMMER") and not _farm_w("MAP_FIELD_A0")
+               and not [s for s in dup.validate(map_name="MAP_FIELD_04") if "no farm field" in s])
     # ATTR resize + the atlas check that makes it safe (needs the tiles next to the map)
     f01 = _first("MAP_FIELD_01.rf4m")
     if f01 and (f01.parent / "MAP_FIELD_201_0000.texture").is_file():
