@@ -70,7 +70,6 @@ class MapEditorPanel:
         self.fill_global = False
         self.add_kind = "entity"
         self.add_type = 28
-        self.prev_paint_tool = None
         self._spawns_for = None
         self._spawn_bank = None
         self._regions_for = None
@@ -564,10 +563,6 @@ class MapEditorPanel:
         old = self.tools.get(getattr(self, "_tool_name", None))
         if old is not None:
             old.deactivate()
-            if old.name in tools.PAINT_TOOLS and old.name != "pick":
-                self.prev_paint_tool = old.name
-            if name == "pick" and old.name != "pick":     # Pick returns to the tool it came from
-                self.pick_return_tool = old.name
         self._tool_name = name
         self.tool_var.set(name)
         t = self.tools[name]
@@ -593,6 +588,8 @@ class MapEditorPanel:
             return
         self.paint_value = v & 0xFFFFFFFF
         self.inspector.paint.sync(self.paint_value, self.view.colors)
+        if getattr(self, "_tool_name", None) == "pick":   # any value picked under Pick -> Paint
+            self.set_tool("paint")
 
     def set_brush(self, n):
         self.brush = n

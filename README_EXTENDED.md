@@ -397,7 +397,7 @@ and a sidebar with six tabs (it opens on View):
 | Paint | B | paint the ATTR value with a 1-9 tile brush (`[` / `]`); right-click picks a value; Shift+click draws a line from the last painted tile |
 | Fill | G | flood-fill the clicked region, or replace that value on the whole map |
 | Rectangle | R | drag a rectangle and fill it |
-| Pick | I | take a tile's value, then return to the previous tool |
+| Pick | I | take a tile's value, then switch to Paint (so does picking a value in the panel while Pick is on) |
 | Add | A | place an entity (searchable type list), a search spot, a gate position or a monster spawn point |
 | Warp | W | drag out a new warp zone |
 

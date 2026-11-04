@@ -16801,6 +16801,13 @@ def test_map_editor_workflows():
         panel._press(E(40 * cp + 1, 20 * cp + 1))
         _check("the pick tool takes the tile's value and returns to the paint tool",
                panel.paint_value == d.cell(40, 20) and panel.tool.name == "paint")
+        panel.set_tool("fill"); panel.set_tool("pick")
+        panel._press(E(40 * cp + 1, 20 * cp + 1))
+        _from_fill = panel.tool.name
+        panel.set_tool("pick"); panel.set_paint_value(0x2)
+        _check("Pick always lands on Paint: after a tile click coming from Fill, and after a "
+               "value picked in the panel while Pick is on",
+               _from_fill == "paint" and panel.tool.name == "paint", _from_fill)
         panel.set_tool("rect"); panel.set_paint_value(0x2)
         click_drag(2 * cp + 1, 2 * cp + 1, 5 * cp + 1, 4 * cp + 1)
         _check("the rectangle tool fills the dragged tiles",

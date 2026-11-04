@@ -498,13 +498,12 @@ class RectTool(Tool):
 
 class PickTool(Tool):
     name, label, key, cursor = "pick", "Pick", "i", "target"
-    hint = "Click a tile to take its ATTR value; the previous tool comes back."
+    hint = "Click a tile to take its ATTR value; Paint is selected right after."
 
     def press(self, e):
         t = self.view.tile_at(e)
         if t is not None:
-            self.ed.set_paint_value(self.doc.cell(*t))
-            self.ed.set_tool(getattr(self.ed, "pick_return_tool", None) or self.ed.prev_paint_tool or "paint")
+            self.ed.set_paint_value(self.doc.cell(*t))     # switches to Paint
 
 
 # --------------------------------------------------------------------------- #
